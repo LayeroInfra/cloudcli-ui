@@ -1,5 +1,6 @@
 import fsp from 'node:fs/promises';
 import os from 'node:os';
+import { sessionsDb } from '@/modules/database/index.js';
 import path from 'node:path';
 
 /**
@@ -118,4 +119,32 @@ export async function listBusyClaudeCliSessions(): Promise<LiveClaudeCliSession[
   );
 
   return sessions.filter((session): session is LiveClaudeCliSession => session !== null);
+}
+
+/** Called by the session watcher when the native Linux CLI registers a process.
+ * An idle interactive fork has a registry entry before it writes a transcript.
+ * Trust only the live process's explicit resume argument for its parent.
+ */
+export async function indexLiveClaudeFork(file: string): Promise<string | null> {
+  if (process.platform !== 'linux' || !/^\d+\.json$/.test(path.basename(file))) return null;
+  let record, args: string[];
+  try {
+    record = JSON.parse(await fsp.readFile(file, 'utf8'));
+    if (record.pid !== Number.parseInt(path.basename(file), 10) ||
+        typeof record.procStart !== 'string' || !(await isRecordedProcessAlive(record.pid, record.procStart))) return null;
+    args = (await fsp.readFile(`/proc/${record.pid}/cmdline`, 'utf8')).split('\0');
+  } catch { return null; }
+  const resume = args.findIndex(arg => arg === '--resume' || arg === '-r');
+  const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
+  if (!args.includes('--fork-session') || resume < 0 || !uuid.test(args[resume + 1] ?? '') ||
+      !uuid.test(record.sessionId) || typeof record.cwd !== 'string' || !path.isAbsolute(record.cwd)) return null;
+  const parent = sessionsDb.getSessionByProviderSessionId(args[resume + 1]);
+  if (!parent || parent.provider !== 'claude' || args[resume + 1] === record.sessionId) return null;
+  let id = sessionsDb.getSessionByProviderSessionId(record.sessionId)?.session_id;
+  const created = !id;
+  if (!id) {
+    id = sessionsDb.createSession(record.sessionId, 'claude', record.cwd, record.name || 'Claude fork');
+  }
+  const linked = sessionsDb.linkExternalFork(record.sessionId, args[resume + 1]);
+  return created || linked ? id : null;
 }

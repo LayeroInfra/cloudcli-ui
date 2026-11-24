@@ -2,6 +2,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { promises as fsPromises } from 'node:fs';
 
+import { indexLiveClaudeFork } from './claude-cli-liveness.service.js';
 import chokidar, { type FSWatcher } from 'chokidar';
 
 import { sessionSynchronizerService } from '@/modules/providers/services/session-synchronizer.service.js';
@@ -242,6 +243,21 @@ export async function initializeSessionsWatcher(): Promise<void> {
     prunedOrphans: initialSync.prunedOrphans,
     failures: initialSync.failures,
   });
+
+  if (process.platform === 'linux') {
+    const registry = chokidar.watch(path.join(os.homedir(), '.claude', 'sessions'), {
+      depth: 0, awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 },
+    });
+    const updateFork = async (file: string) => {
+      try {
+        const id = await indexLiveClaudeFork(file);
+        if (id) queuePendingWatcherUpdate('add', 'claude', id);
+      } catch (error) { console.error('Failed to index CLI fork', error); }
+    };
+    registry.on('add', updateFork).on('change', updateFork)
+      .on('error', error => console.error('CLI registry watcher failed', error));
+    watchers.push(registry);
+  }
 
   for (const { provider, rootPath } of PROVIDER_WATCH_PATHS) {
     try {

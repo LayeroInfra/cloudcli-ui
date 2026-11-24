@@ -1,3 +1,31 @@
+## Layero edition
+
+This fork includes an embedded localhost preview with tabs, an address bar and a resizable split view. On Linux it also watches the Claude CLI process registry for sessions started with `--resume <UUID> --fork-session`, so a new branch can appear in the project tree before its first message.
+
+### Install this fork on your VM
+
+With Node.js 22.12+ and npm on the VM, run:
+
+```sh
+git clone https://github.com/LayeroInfra/cloudcli-ui.git
+cd cloudcli-ui
+ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci
+npm run build
+HOST=127.0.0.1 SERVER_PORT=3001 npm run server
+```
+
+Run as the same OS user as Claude Code. On an existing installation, preserve its `DATABASE_PATH` and stop the old UI before switching. To update, pull this repository and repeat installation and build.
+
+On your computer, replace `your-vm` with your SSH host:
+
+```sh
+ssh -NT -o ExitOnForwardFailure=yes -L 127.0.0.1:13001:127.0.0.1:3001 -L 127.0.0.1:8080:127.0.0.1:8080 -L 127.0.0.1:15173:127.0.0.1:5173 your-vm
+```
+
+Open `http://127.0.0.1:13001`. Run your site's dev server on VM loopback port 8080 or 5173. Links to either port open in the preview pane. Drag the divider to resize it, or focus it and use the arrow keys. The preview works with sites that allow framing. Tabs share the same SSH forwards.
+
+---
+
 <div align="center">
  <img src="public/logo.svg" alt="CloudCLI UI" width="64" height="64">
  <h1>Cloud CLI (aka Claude Code UI)</h1>

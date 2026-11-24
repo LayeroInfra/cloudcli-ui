@@ -83,6 +83,19 @@ function normalizeProjectPathForProvider(provider: string, projectPath: string):
 }
 
 export const sessionsDb = {
+  /** Links an externally started CLI fork once both native IDs are known. */
+  linkExternalFork(childId: string, parentId: string): boolean {
+    if (childId === parentId) return false;
+    const parent = this.getSessionByProviderSessionId(parentId);
+    if (!parent || parent.provider !== 'claude') return false;
+    const result = getConnection().prepare(
+      `UPDATE sessions SET forked_from_session_id = ?
+       WHERE provider = 'claude' AND provider_session_id = ?
+         AND session_id != ? AND forked_from_session_id IS NULL`,
+    ).run(parent.session_id, childId, parent.session_id);
+    return result.changes > 0;
+  },
+
   /**
    * Upserts one session row discovered on disk by a provider synchronizer.
    *
