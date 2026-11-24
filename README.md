@@ -16,7 +16,17 @@ HOST=127.0.0.1 SERVER_PORT=3001 npm run server
 
 Run as the same OS user as Claude Code. On an existing installation, preserve its `DATABASE_PATH` and stop the old UI before switching. To update, pull this repository and repeat installation and build.
 
-On your computer, replace `your-vm` with your SSH host:
+On macOS, the included launcher opens the UI in a separate Chrome profile with external proxy traffic blocked. With the server already running on the VM:
+
+```sh
+mkdir -p ~/.local/bin
+install -m 755 scripts/macos/cloudcli ~/.local/bin/cloudcli
+export CLOUDCLI_SSH_HOST=your-vm
+cloudcli on
+cloudcli off
+```
+
+For a manual tunnel on your computer, replace `your-vm` with your SSH host:
 
 ```sh
 ssh -NT -o ExitOnForwardFailure=yes -L 127.0.0.1:13001:127.0.0.1:3001 -L 127.0.0.1:8080:127.0.0.1:8080 -L 127.0.0.1:15173:127.0.0.1:5173 your-vm

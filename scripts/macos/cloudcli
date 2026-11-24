@@ -1,0 +1,33 @@
+#!/bin/bash
+# SSH alias and Chrome profile may be set per installation.
+set -euo pipefail
+umask 077
+host=${CLOUDCLI_SSH_HOST:?Set CLOUDCLI_SSH_HOST to your SSH host alias}
+socket=${CLOUDCLI_CONTROL_PATH:-$HOME/.ssh/cloudcli-ui-tunnel.sock}
+profile=${CLOUDCLI_CHROME_PROFILE:-$HOME/.config/layero-workspace/chrome}
+
+case "${1:-}" in
+    on)
+        if ! ssh -S "$socket" -O check "$host" >/dev/null 2>&1; then
+            ssh -M -S "$socket" -fNT -o BatchMode=yes -o ExitOnForwardFailure=yes \
+                -L 127.0.0.1:13001:127.0.0.1:3001 \
+                -L 127.0.0.1:8080:127.0.0.1:8080 \
+                -L 127.0.0.1:15173:127.0.0.1:5173 "$host"
+        fi
+        curl --noproxy '*' -fsS --max-time 5 http://127.0.0.1:13001/api/auth/status >/dev/null
+        open -na 'Google Chrome' --args --user-data-dir="$profile" --no-first-run \
+            --proxy-server='http://127.0.0.1:9' --proxy-bypass-list='localhost;127.0.0.1' \
+            --disable-quic --force-webrtc-ip-handling-policy=disable_non_proxied_udp \
+            --disable-background-networking --disable-sync --disable-extensions \
+            --new-window http://127.0.0.1:13001/
+        ;;
+    off)
+        if ssh -S "$socket" -O check "$host" >/dev/null 2>&1; then
+            ssh -S "$socket" -O exit "$host"
+        fi
+        ;;
+    *)
+        echo 'Usage: cloudcli on | cloudcli off' >&2
+        exit 2
+        ;;
+esac
