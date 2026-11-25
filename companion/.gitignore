@@ -1,0 +1,7 @@
+/agent/
+/secrets/
+/certs/
+/dist/
+/bin/woodpecker-agent
+/app/Companion.app/Contents/MacOS/
+/**/__pycache__/

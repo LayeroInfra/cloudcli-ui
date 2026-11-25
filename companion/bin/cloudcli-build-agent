@@ -1,0 +1,34 @@
+#!/bin/bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Prefer installed copy under ~/.local/share when present
+if [ -d "$HOME/.local/share/cloudcli-companion/bin" ]; then
+  ROOT="$HOME/.local/share/cloudcli-companion"
+fi
+LOG_DIR="$HOME/.local/state/cloudcli-companion"
+# shellcheck source=lib/identity.sh
+source "$ROOT/bin/lib/identity.sh"
+require_identity
+OWNER="$(identity_owner)"
+CHECKOUT="$(identity_get checkout)"
+mkdir -p "$LOG_DIR" "$ROOT/agent"
+
+# Install local check runner for Woodpecker steps
+install -m 755 "$ROOT/bin/workspace-run-checks" "$HOME/.local/bin/workspace-run-checks"
+
+export WOODPECKER_SERVER="${WOODPECKER_SERVER:-127.0.0.1:19000}"
+export WOODPECKER_AGENT_SECRET
+WOODPECKER_AGENT_SECRET="$(tr -d '\n' < "$ROOT/agent/agent.secret")"
+export WOODPECKER_HOSTNAME="${WOODPECKER_HOSTNAME:-$OWNER}"
+export WOODPECKER_MAX_WORKFLOWS=1
+export WOODPECKER_BACKEND=local
+export WOODPECKER_HEALTHCHECK=false
+export WOODPECKER_AGENT_CONFIG_FILE="$ROOT/agent/agent.conf"
+# Per-user routing: only jobs labeled owner=<Layero Workspace username>
+export WOODPECKER_AGENT_LABELS="owner=${OWNER},backend=local"
+export WOODPECKER_CONNECT_RETRY_COUNT=20
+export CLOUDCLI_CHECKOUT="${CHECKOUT}"
+export WORKSPACE_OWNER="${OWNER}"
+export PATH="/opt/homebrew/bin:/usr/bin:/bin:$PATH"
+echo "$(date -Iseconds) agent start owner=$OWNER checkout=$CHECKOUT" >>"$LOG_DIR/agent.log"
+exec "$ROOT/bin/woodpecker-agent" >>"$LOG_DIR/agent.log" 2>&1

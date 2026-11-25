@@ -1,0 +1,41 @@
+#!/bin/bash
+# Runs on this Mac inside a Woodpecker local step. Checkout comes from identity.json.
+set -euo pipefail
+
+IDENTITY_FILE="${HOME}/.config/layero-workspace/identity.json"
+# Woodpecker may sandbox HOME — prefer the real user home.
+REAL_HOME="/Users/$(/usr/bin/id -un)"
+if [ -f "$REAL_HOME/.config/layero-workspace/identity.json" ]; then
+  IDENTITY_FILE="$REAL_HOME/.config/layero-workspace/identity.json"
+  export HOME="$REAL_HOME"
+fi
+
+if [ ! -f "$IDENTITY_FILE" ]; then
+  echo "missing identity: $IDENTITY_FILE" >&2
+  exit 1
+fi
+
+read_json() {
+  python3 - "$IDENTITY_FILE" "$1" <<'PY'
+import json, sys
+from pathlib import Path
+print(json.loads(Path(sys.argv[1]).read_text()).get(sys.argv[2], "") or "")
+PY
+}
+
+CHECKOUT="$(read_json checkout)"
+OWNER="$(read_json owner | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_-]+/-/g')"
+if [ -z "$CHECKOUT" ] || [ ! -d "$CHECKOUT" ]; then
+  echo "checkout missing: $CHECKOUT (owner=$OWNER)" >&2
+  exit 1
+fi
+
+cd "$CHECKOUT"
+export PATH="/opt/homebrew/bin:${CHECKOUT}/node_modules/.bin:/usr/bin:/bin"
+echo "workspace-run-checks owner=$OWNER checkout=$CHECKOUT"
+tsx --tsconfig server/tsconfig.json --test \
+  server/modules/providers/tests/claude-sessions.test.ts \
+  server/modules/providers/tests/claude-rate-limits.test.ts
+vitest run \
+  src/modules/sidebar/tests/sidebarAccount.test.tsx \
+  src/modules/project-workspace/tests/workspaceConnectionIndicator.test.tsx
