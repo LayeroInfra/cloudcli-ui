@@ -371,3 +371,13 @@ test('Codex token usage falls back to the whole file when the tail has no token_
     await rm(tempDirectory, { recursive: true, force: true });
   }
 });
+
+test('a context past the default window without a reported window reads as a 1M model', () => {
+  const entries = [{ type: 'assistant', message: { usage: { input_tokens: 10, cache_read_input_tokens: 379_000, output_tokens: 500 } } }];
+
+  assert.equal(summarizeClaudeTokenUsage(entries, undefined).total, 1_000_000);
+  // A reported window still wins, and a small context keeps the default.
+  assert.equal(summarizeClaudeTokenUsage(entries, undefined, 2_000_000).total, 2_000_000);
+  const small = [{ type: 'assistant', message: { usage: { input_tokens: 1000, output_tokens: 10 } } }];
+  assert.equal(summarizeClaudeTokenUsage(small, undefined).total, 160_000);
+});

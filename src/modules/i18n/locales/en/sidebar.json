@@ -3,7 +3,8 @@
     "title": "Pinned sessions",
     "pin": "Pin session",
     "unpin": "Unpin session",
-    "error": "Could not load or save session pins. Please try again."
+    "error": "Could not load or save session pins. Please try again.",
+    "withinProject": "Keeps it at the top of its project."
   },
   "projects": {
     "title": "Projects",
@@ -23,7 +24,8 @@
     "projects": "projects",
     "noMatchingProjects": "No matching projects",
     "tryDifferentSearch": "Try adjusting your search term",
-    "runClaudeCli": "Run Claude CLI in a project directory to get started"
+    "runClaudeCli": "Run Claude CLI in a project directory to get started",
+    "options": "Project options"
   },
   "app": {
     "title": "CloudCLI",
@@ -46,7 +48,12 @@
     "deleteSelected_one": "Delete {{count}} session",
     "deleteSelected_other": "Delete {{count}} sessions",
     "expandForks": "Expand forks of {{session}}",
-    "collapseForks": "Collapse forks of {{session}}"
+    "collapseForks": "Collapse forks of {{session}}",
+    "options": "Session options",
+    "rename": "Rename session",
+    "fork": "Fork session",
+    "forkDescription": "Continue from a copy, leaving this one untouched.",
+    "delete": "Delete session"
   },
   "tooltips": {
     "viewEnvironments": "View Environments",
@@ -185,5 +192,26 @@
     "archiveSessions_other": "Archive {{count}} sessions",
     "archiveSessionsNotice_one": "Archive keeps the session out of the active list while preserving its history.",
     "archiveSessionsNotice_other": "Archive keeps the sessions out of the active list while preserving their history."
+  },
+  "account": {
+    "label": "Account",
+    "signedOut": "Not signed in",
+    "signedIn": "Signed in",
+    "apiKey": "API key",
+    "keyOverridesLogin": "An API key is used instead of the subscription login",
+    "manage": "Accounts and agents",
+    "source": "Source code · Layero edition",
+    "limits": {
+      "title": "Plan usage limits",
+      "fiveHour": "5h",
+      "week": "Week",
+      "weekOpus": "Week · Opus",
+      "weekSonnet": "Week · Sonnet",
+      "empty": "No data from Claude yet.",
+      "reached": "Limit reached",
+      "left": "{{left}}% left",
+      "resetsIn": "Resets in {{time}}",
+      "unavailable": "no data"
+    }
   }
 }

@@ -17,7 +17,8 @@
     "projects": "проекты",
     "noMatchingProjects": "Нет подходящих проектов",
     "tryDifferentSearch": "Попробуйте изменить поисковый запрос",
-    "runClaudeCli": "Запустите Claude CLI в каталоге проекта для начала работы"
+    "runClaudeCli": "Запустите Claude CLI в каталоге проекта для начала работы",
+    "options": "Настройки проекта"
   },
   "app": {
     "title": "CloudCLI",
@@ -25,7 +26,7 @@
   },
   "sessions": {
     "title": "Сеансы",
-    "newSession": "Новый сеанс",
+    "newSession": "Новая сессия",
     "deleteSession": "Удалить сеанс",
     "renameSession": "Переименовать сеанс",
     "noSessions": "Сеансов пока нет",
@@ -42,7 +43,12 @@
     "deleteSelected_many": "Удалить {{count}} сеансов",
     "deleteSelected_other": "Удалить {{count}} сеансов",
     "expandForks": "Развернуть ответвления {{session}}",
-    "collapseForks": "Свернуть ответвления {{session}}"
+    "collapseForks": "Свернуть ответвления {{session}}",
+    "options": "Настройки сессии",
+    "rename": "Переименовать",
+    "fork": "Ответвить сессию",
+    "forkDescription": "Продолжить с копии, не трогая эту.",
+    "delete": "Удалить сессию"
   },
   "tooltips": {
     "viewEnvironments": "Просмотр окружений",
@@ -184,5 +190,31 @@
     "archiveSessionsNotice_few": "Архивирование убирает сеансы из активного списка, сохраняя их историю.",
     "archiveSessionsNotice_many": "Архивирование убирает сеансы из активного списка, сохраняя их историю.",
     "archiveSessionsNotice_other": "Архивирование убирает сеансы из активного списка, сохраняя их историю."
+  },
+  "account": {
+    "label": "Аккаунт",
+    "signedOut": "Вход не выполнен",
+    "signedIn": "Вход выполнен",
+    "apiKey": "API-ключ",
+    "keyOverridesLogin": "Вместо подписки используется API-ключ",
+    "manage": "Аккаунты и агенты",
+    "source": "Исходный код · Layero edition",
+    "limits": {
+      "title": "Лимиты тарифа",
+      "fiveHour": "5 ч",
+      "week": "Неделя",
+      "weekOpus": "Неделя · Opus",
+      "weekSonnet": "Неделя · Sonnet",
+      "empty": "Claude пока не прислал данных.",
+      "reached": "Лимит исчерпан",
+      "left": "Осталось {{left}}%",
+      "resetsIn": "Сброс через {{time}}",
+      "unavailable": "нет данных"
+    }
+  },
+  "pinned": {
+    "pin": "Закрепить",
+    "unpin": "Открепить",
+    "withinProject": "Держит сессию наверху проекта."
   }
 }

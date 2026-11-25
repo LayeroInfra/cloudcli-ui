@@ -92,27 +92,17 @@ test.each<LLMProvider>(['claude', 'codex'])('mobile offers a fork for a supporte
 
   assert.ok(sheet.getByRole('button', { name: /Fork session/ }));
   assert.ok(sheet.getByRole('button', { name: 'Rename session' }));
-  assert.ok(sheet.getByRole('button', { name: 'Archive session' }));
+  assert.equal(sheet.queryByRole('button', { name: 'Archive session' }), null);
   assert.ok(sheet.getByRole('button', { name: 'Delete session' }));
 });
 
-test('mobile archive and delete are separate actions with their own handlers', async () => {
-  const onArchiveSession = vi.fn();
+test('mobile delete calls its handler, and there is no archive any more', async () => {
   const onDeleteSession = vi.fn();
-  const { unmount } = render(<SidebarSessionItem {...rowProps({ onArchiveSession, onDeleteSession })} />);
-  let sheet = await openOptions();
-
-  fireEvent.click(sheet.getByRole('button', { name: 'Archive session' }));
-  assert.deepEqual(onArchiveSession.mock.calls, [[SESSION.id]]);
-  assert.equal(onDeleteSession.mock.calls.length, 0);
-  assert.equal(screen.queryByRole('dialog'), null);
-  unmount();
-
-  render(<SidebarSessionItem {...rowProps({ onArchiveSession, onDeleteSession })} />);
-  sheet = await openOptions();
+  render(<SidebarSessionItem {...rowProps({ onDeleteSession })} />);
+  const sheet = await openOptions();
+  assert.equal(sheet.queryByRole('button', { name: 'Archive session' }), null);
   fireEvent.click(sheet.getByRole('button', { name: 'Delete session' }));
   assert.deepEqual(onDeleteSession.mock.calls, [[SESSION.id, 'Session one']]);
-  assert.equal(onArchiveSession.mock.calls.length, 1);
 });
 
 test('mobile withholds archive and delete while the session is running', async () => {

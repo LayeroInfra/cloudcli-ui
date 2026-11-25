@@ -7,6 +7,8 @@ import { languages } from '@/modules/i18n/languages';
 
 type LanguageSelectorProps = {
   compact?: boolean;
+  /** A bare label-and-select row for menus, such as the sidebar profile menu. */
+  inline?: boolean;
 };
 
 /**
@@ -15,13 +17,13 @@ type LanguageSelectorProps = {
  * A dropdown component for selecting the application language.
  * Automatically updates the i18n language and persists it as a user preference.
  *
- * Used by the settings module (appearance tab) and the quick-settings-panel module
+ * Used by the settings module (appearance tab) and the sidebar's profile menu (inline)
  * so the user can switch language from either surface.
  *
  * Props:
  * @param {boolean} compact - If true, uses compact style (default: false)
  */
-export default function LanguageSelector({ compact = false }: LanguageSelectorProps) {
+export default function LanguageSelector({ compact = false, inline = false }: LanguageSelectorProps) {
   const { i18n, t } = useTranslation('settings');
 
   const handleLanguageChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -29,7 +31,29 @@ export default function LanguageSelector({ compact = false }: LanguageSelectorPr
     i18n.changeLanguage(newLanguage);
   };
 
-  // Compact style for QuickSettingsPanel
+  if (inline) {
+    return (
+      <label className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm text-foreground">
+        <span className="flex items-center gap-2.5">
+          <Languages className="h-4 w-4 text-muted-foreground" />
+          {t('account.language')}
+        </span>
+        <select
+          value={i18n.language}
+          onChange={handleLanguageChange}
+          className="max-w-[9rem] rounded-md border border-input bg-background px-1.5 py-1 text-xs text-foreground focus:border-primary focus:outline-none"
+        >
+          {languages.map((lang) => (
+            <option key={lang.value} value={lang.value}>
+              {lang.nativeName}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+
+  // Compact style
   if (compact) {
     return (
       <div className="flex items-center justify-between rounded-lg border border-transparent bg-muted/50 p-3 transition-colors hover:border-border hover:bg-accent">

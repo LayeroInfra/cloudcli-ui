@@ -1127,6 +1127,16 @@ export type ProviderAuthStatus = {
    * existing consumers that never look for it are unaffected.
    */
   subscriptionOverride?: ProviderAuthSubscriptionOverride;
+  /**
+   * The subscription plan a `claude /login` account is on, as Claude Code
+   * stores it (`pro`, `max`, `team`, `enterprise`). Present only for a
+   * subscription login whose credentials name a plan; absent for API keys and
+   * for every other provider, so the workspace header can show the plan only
+   * when it is actually known.
+   */
+  plan?: string;
+  /** The organization the signed-in Claude account belongs to, when Claude Code recorded one. Absent otherwise. */
+  organization?: string;
 };
 
 /**

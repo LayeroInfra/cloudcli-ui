@@ -21,8 +21,8 @@
   input.setAttribute("aria-label", "Адрес предпросмотра");
   input.spellcheck = false;
   input.autocomplete = "off";
-  const initial = "http://localhost:8080/";
-  const ports = { 8080: "8080", 15173: "15173", 5173: "15173" };
+  const initial = "http://localhost:5174/";
+  const ports = { 5174: "5174" };
   const tabs = [];
   let active;
   function normalize(text) {
@@ -131,7 +131,7 @@
       navigate(active, normalize(input.value));
     } catch {
       input.setCustomValidity(
-        "Доступны адреса localhost на портах 8080, 5173 и 15173.",
+        "Доступны адреса localhost на порту 5174.",
       );
       input.reportValidity();
     }

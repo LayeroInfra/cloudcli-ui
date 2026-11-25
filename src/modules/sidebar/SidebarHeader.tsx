@@ -4,9 +4,7 @@ import type { TFunction } from 'i18next';
 import { Button, Input } from '@/shared/ui';
 import { CLOUDCLI_WORDMARK_FONT_FAMILY } from '@/shared/constants';
 import { IS_PLATFORM } from '@/shared/utils';
-import type { SidebarSearchMode } from '@/shared/types';
 import GitHubStarBadge from '@/modules/sidebar/GitHubStarBadge';
-import SidebarModeTabs from '@/modules/sidebar/SidebarModeTabs';
 
 const MOD_KEY =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
@@ -16,14 +14,9 @@ type SidebarHeaderProps = {
   isMobile: boolean;
   isLoading: boolean;
   projectsCount: number;
-  runningSessionsCount: number;
-  archivedSessionsCount: number;
-  isArchivedSessionsLoading: boolean;
   searchFilter: string;
   onSearchFilterChange: (value: string) => void;
   onClearSearchFilter: () => void;
-  searchMode: SidebarSearchMode;
-  onSearchModeChange: (mode: SidebarSearchMode) => void;
   onRefresh: () => void;
   isRefreshing: boolean;
   onCreateProject: () => void;
@@ -50,34 +43,23 @@ function LogoBlock({ t }: { t: TFunction }) {
   );
 }
 
-/** Rendered by SidebarContent at the top of the panel for the search box, search-mode tabs, refresh and new-project actions. */
+/** Rendered by SidebarContent at the top of the panel for the project search box, refresh and new-project actions. */
 export default function SidebarHeader({
   isPWA,
   isMobile,
   isLoading,
   projectsCount,
-  runningSessionsCount,
-  archivedSessionsCount,
-  isArchivedSessionsLoading,
   searchFilter,
   onSearchFilterChange,
   onClearSearchFilter,
-  searchMode,
-  onSearchModeChange,
   onRefresh,
   isRefreshing,
   onCreateProject,
   onCollapseSidebar,
   t,
 }: SidebarHeaderProps) {
-  const showSearchTools = (projectsCount > 0 || runningSessionsCount > 0 || archivedSessionsCount > 0 || isArchivedSessionsLoading) && !isLoading;
-  const searchPlaceholder = searchMode === 'conversations'
-    ? t('search.conversationsPlaceholder')
-    : searchMode === 'archived'
-      ? t('search.archivedPlaceholder', 'Search archived sessions...')
-      : searchMode === 'running'
-        ? t('search.runningPlaceholder', 'Search running sessions...')
-        : t('projects.searchPlaceholder');
+  const showSearchTools = projectsCount > 0 && !isLoading;
+  const searchPlaceholder = t('projects.searchPlaceholder');
 
   return (
     <div className="flex-shrink-0">
@@ -140,13 +122,6 @@ export default function SidebarHeader({
         {/* Search bar */}
         {showSearchTools && (
           <div className="mt-2.5 space-y-2">
-            {/* Search mode toggle */}
-            <SidebarModeTabs
-              searchMode={searchMode}
-              onSearchModeChange={onSearchModeChange}
-              runningSessionsCount={runningSessionsCount}
-              t={t}
-            />
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/50" />
               <Input
@@ -220,12 +195,6 @@ export default function SidebarHeader({
         {/* Mobile search */}
         {showSearchTools && (
           <div className="mt-2.5 space-y-2">
-            <SidebarModeTabs
-              searchMode={searchMode}
-              onSearchModeChange={onSearchModeChange}
-              runningSessionsCount={runningSessionsCount}
-              t={t}
-            />
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
               <Input

@@ -29,7 +29,7 @@ const DEFAULTS: UiPreferences = {
   showThinking: true,
   sendByCtrlEnter: false,
   sidebarVisible: true,
-  keepProjectsExpanded: false,
+  keepProjectsExpanded: true,
   voiceEnabled: false,
 };
 

@@ -16,6 +16,8 @@ type ParsedSession = {
   sessionId: string;
   projectPath: string;
   sessionName?: string;
+  /** Provider id of the session this transcript was branched from, if any. */
+  forkedFromSessionId?: string;
 };
 
 /**
@@ -54,6 +56,8 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
     );
 
     let processed = 0;
+    // Linked after the loop: a fork's parent may be indexed later in this scan.
+    const forkLinks: Array<[child: string, parent: string]> = [];
     for (const filePath of files) {
       if (this.isSubagentTranscript(filePath)) {
         continue;
@@ -74,7 +78,14 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
         timestamps.updatedAt,
         filePath
       );
+      if (parsed.forkedFromSessionId) {
+        forkLinks.push([parsed.sessionId, parsed.forkedFromSessionId]);
+      }
       processed += 1;
+    }
+
+    for (const [childId, parentId] of forkLinks) {
+      sessionsDb.linkExternalFork(childId, parentId);
     }
 
     return processed;
@@ -98,7 +109,7 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
     }
 
     const timestamps = await readFileTimestamps(filePath);
-    return sessionsDb.createSession(
+    const sessionId = sessionsDb.createSession(
       parsed.sessionId,
       this.provider,
       parsed.projectPath,
@@ -107,6 +118,10 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
       timestamps.updatedAt,
       filePath
     );
+    if (parsed.forkedFromSessionId) {
+      sessionsDb.linkExternalFork(parsed.sessionId, parsed.forkedFromSessionId);
+    }
+    return sessionId;
   }
 
   /**
@@ -151,11 +166,17 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
     // ids must be resolved through the provider-id mapping first.
     const existingSession = sessionsDb.getSessionByProviderSessionId(parsed.sessionId)
       ?? sessionsDb.getSessionById(parsed.sessionId);
+    // Already-linked rows (app forks, earlier scans) need no second read.
+    const forkedFromSessionId = existingSession?.forked_from_session_id
+      ? undefined
+      : await this.extractForkParent(filePath, parsed.sessionId);
+
     const existingSessionName = existingSession?.custom_name;
     if (existingSessionName && existingSessionName !== 'Untitled Claude Session') {
       return {
         ...parsed,
         sessionName: normalizeSessionName(existingSessionName, 'Untitled Claude Session'),
+        forkedFromSessionId,
       };
     }
 
@@ -167,7 +188,44 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
     return {
       ...parsed,
       sessionName: normalizeSessionName(sessionName, 'Untitled Claude Session'),
+      forkedFromSessionId,
     };
+  }
+
+  /**
+   * Returns the provider id of the session a transcript was branched from.
+   *
+   * Claude stamps every row it copies into a fork (`--fork-session`, `/branch`,
+   * the SDK's `forkSession`) with `forkedFrom: { sessionId, messageUuid }`.
+   * That stamp is the only record of the relation that survives outside this
+   * app's database, e.g. for CLI forks or after a database rebuild.
+   */
+  private async extractForkParent(filePath: string, sessionId: string): Promise<string | undefined> {
+    let content: string;
+    try {
+      content = await readFile(filePath, 'utf8');
+    } catch {
+      return undefined;
+    }
+    if (!content.includes('"forkedFrom"')) {
+      return undefined;
+    }
+
+    for (const line of content.split(/\r?\n/)) {
+      if (!line.includes('"forkedFrom"')) {
+        continue;
+      }
+      try {
+        const forkedFrom = (JSON.parse(line) as { forkedFrom?: { sessionId?: unknown } }).forkedFrom;
+        const parentId = forkedFrom?.sessionId;
+        if (typeof parentId === 'string' && parentId && parentId !== sessionId) {
+          return parentId;
+        }
+      } catch {
+        // A partially written line; keep looking.
+      }
+    }
+    return undefined;
   }
 
   /**

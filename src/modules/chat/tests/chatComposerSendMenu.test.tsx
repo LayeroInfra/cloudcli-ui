@@ -9,7 +9,6 @@ import '@/modules/i18n';
 import ChatComposer from '@/modules/chat/composer/ChatComposer';
 import { UiPreferencesProvider } from '@/shared/context/UiPreferencesContext';
 import type { SessionActivity } from '@/shared/types';
-import * as useVoiceInputModule from '@/modules/chat/hooks/useVoiceInput';
 
 /**
  * Where the composer draws the send menu: in place of the send button while a
@@ -17,7 +16,7 @@ import * as useVoiceInputModule from '@/modules/chat/hooks/useVoiceInput';
  * menu is the existing abort.
  *
  * Every prop below is a stub of the composer's current interface; only
- * `isLoading`, `activity`, `input`/`hasInput` and `onAbortSession` matter here.
+ * `isLoading`, `activity`, `input` and `onAbortSession` matter here.
  */
 
 type Props = ComponentProps<typeof ChatComposer>;
@@ -42,12 +41,6 @@ const props = (overrides: Partial<Props>): Props => ({
   availableModelOptions: [],
   onSelectModel: () => undefined,
   modelsLoading: false,
-  tokenBudget: null,
-  onShowTokenUsage: () => undefined,
-  slashCommandsCount: 0,
-  onToggleCommandMenu: () => undefined,
-  hasInput: true,
-  onClearInput: () => undefined,
   onSubmit: () => undefined,
   isDragActive: false,
   queuedDraft: null,
@@ -56,7 +49,6 @@ const props = (overrides: Partial<Props>): Props => ({
   isEditingSentMessage: false,
   onCancelEditMessage: () => undefined,
   scheduledMessages: [],
-  onScheduleMessage: () => undefined,
   onCancelScheduledMessage: () => undefined,
   onEditQueuedDraft: () => undefined,
   onDeleteQueuedDraft: () => undefined,
@@ -111,7 +103,7 @@ test('idle: the plain send button, and no send menu', () => {
 
 test('turn running, composer empty: the green submit button is Stop, one tap aborts, and no menu opens', () => {
   const onAbortSession = vi.fn();
-  render(<UiPreferencesProvider><ChatComposer {...props({ isLoading: true, onAbortSession, input: '', hasInput: false, attachedFiles: [] })} /></UiPreferencesProvider>);
+  render(<UiPreferencesProvider><ChatComposer {...props({ isLoading: true, onAbortSession, input: '', attachedFiles: [] })} /></UiPreferencesProvider>);
 
   assert.ok(!hasMenuTrigger(), 'an empty composer keeps the plain button, not the menu');
   const stop = screen.getByRole('button', { name: 'Stop' });
@@ -129,7 +121,7 @@ test('turn running, composer empty: the green submit button is Stop, one tap abo
 // that reaches the handler and does nothing.
 test('turn running, composer empty, cannot be interrupted: the one-tap Stop button is disabled', () => {
   const onAbortSession = vi.fn();
-  render(<UiPreferencesProvider><ChatComposer {...props({ isLoading: true, onAbortSession, input: '', hasInput: false, attachedFiles: [], canAbortSession: false })} /></UiPreferencesProvider>);
+  render(<UiPreferencesProvider><ChatComposer {...props({ isLoading: true, onAbortSession, input: '', attachedFiles: [], canAbortSession: false })} /></UiPreferencesProvider>);
 
   assert.ok(!hasMenuTrigger(), 'an empty composer keeps the plain button, not the menu');
   const stop = screen.getByRole('button', { name: 'Stop' });
@@ -141,34 +133,11 @@ test('turn running, composer empty, cannot be interrupted: the one-tap Stop butt
 });
 
 test('background work, composer empty: the submit button is disabled', () => {
-  render(<UiPreferencesProvider><ChatComposer {...props({ activity: BACKGROUND, input: '', hasInput: false, attachedFiles: [] })} /></UiPreferencesProvider>);
+  render(<UiPreferencesProvider><ChatComposer {...props({ activity: BACKGROUND, input: '', attachedFiles: [] })} /></UiPreferencesProvider>);
 
   assert.ok(!hasMenuTrigger(), 'an empty composer keeps the plain button, not the menu');
   const submit = screen.getByRole('button', { name: 'Send' });
   assert.ok((submit as HTMLButtonElement).disabled, 'disabled with nothing to send');
-});
-
-test('turn running, transcribing: the plain submit button is disabled, so a tap cannot abort the turn', () => {
-  // Transcribing draws the same spinner as a running turn, but it is not a
-  // turn: a tap on the spinner must not reach `onAbortSession`, which the
-  // `isLoading` branch below would otherwise wire up.
-  const onAbortSession = vi.fn();
-  const spy = vi.spyOn(useVoiceInputModule, 'useVoiceInput').mockReturnValue({
-    state: 'transcribing',
-    toggle: () => undefined,
-    stop: () => undefined,
-  });
-
-  render(<UiPreferencesProvider><ChatComposer {...props({ isLoading: true, onAbortSession })} /></UiPreferencesProvider>);
-
-  assert.ok(!hasMenuTrigger(), 'transcribing keeps the plain button, not the menu');
-  const submit = screen.getByRole('button', { name: 'Send' });
-  assert.ok((submit as HTMLButtonElement).disabled, 'disabled while transcribing, even though a turn is running');
-
-  fireEvent.click(submit);
-  assert.equal(onAbortSession.mock.calls.length, 0, 'a tap on the disabled spinner cannot end the turn');
-
-  spy.mockRestore();
 });
 
 test('while a turn is written the send button is the menu, and its Stop is the existing abort', () => {

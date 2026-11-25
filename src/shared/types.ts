@@ -1,5 +1,4 @@
 import type { TFunction } from 'i18next';
-import type { CSSProperties } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
 
 //----------------- LLM PROVIDER MODEL CATALOG ------------
@@ -193,6 +192,27 @@ export type BackgroundTaskSummary = {
   nested?: boolean;
 };
 
+/**
+ * One background task of the open session — a backgrounded command, a
+ * background agent or a workflow run — as the workspace's background-tasks
+ * drawer lists it: read from the session's transcript by the chat module and
+ * handed up to the workspace, so finished tasks keep their outcome the way
+ * Claude Code's task list does. `result` is the task's report (or, for a
+ * command still running, its launch acknowledgement); `taskId` is what
+ * stopping it addresses and is absent until something has named the task.
+ */
+export type SessionBackgroundTask = {
+  toolId: string;
+  taskId?: string;
+  kind: 'command' | 'agent' | 'workflow';
+  title: string;
+  detail?: string;
+  status: BackgroundTaskStatus;
+  startedAt: number;
+  result?: string;
+  isError?: boolean;
+};
+
 /** What a busy session is doing, as shown by the activity indicator: producing a response, or only running background tasks. */
 export type SessionActivity = {
   /** Provider-supplied status line; null renders the default activity label. */
@@ -236,6 +256,19 @@ export type MarkSessionBackground = (
 ) => void;
 
 /** Reads one session's current activity without subscribing to the map, for logic that runs on a websocket frame. */
+/**
+ * What the viewed session's running turn is doing right now, derived from the
+ * transcript (the newest tool call without a result, or a streaming reply) and
+ * shown by the composer's status line. `verb` is an i18n key under
+ * `claudeStatus.now.*` with `defaultVerb` as its English text; `target` is the
+ * command, file, pattern or tool the action is on, possibly empty.
+ */
+export type CurrentAgentAction = {
+  verb: 'running' | 'reading' | 'editing' | 'writing' | 'searching' | 'fetching' | 'agent' | 'planning' | 'tool' | 'replying' | 'thinking';
+  defaultVerb: string;
+  target: string;
+};
+
 export type GetSessionActivity = (sessionId: string) => SessionActivity | undefined;
 
 /** Replaces the whole processing map with the server's view, used by the periodic running-sessions poll. */
@@ -1433,10 +1466,27 @@ export type ProviderAuthStatus = {
   subscriptionOverride?: ProviderAuthSubscriptionOverride;
   /** Version the provider's CLI printed for `--version`; null when unknown, absent until the server has answered. */
   installedVersion?: string | null;
+  /** Subscription plan of a Claude login (`pro`, `max`, …); absent when the server does not know one. Shown by the workspace header. */
+  plan?: string;
+  /** Organization of a Claude login; absent when the server does not know one. Shown in the sidebar account menu. */
+  organization?: string;
 };
 
 /** The authentication state of every CLI provider at once, keyed by LLMProvider, so onboarding and settings can render each provider's connected, loading and error state from one object returned by useProviderAuthStatus. */
 export type ProviderAuthStatusMap = Record<LLMProvider, ProviderAuthStatus>;
+
+/**
+ * One claude.ai plan rate-limit window ('five_hour', 'seven_day', ...) as the
+ * Claude CLI last reported it, served by `/api/providers/claude/rate-limits`
+ * and drawn by the sidebar's account block. `utilization` is 0-100 used.
+ */
+export type ClaudeRateLimitWindow = {
+  type: string;
+  status: string;
+  utilization: number | null;
+  resetsAt: string | null;
+  observedAt: string;
+};
 
 // ---------------------------
 
@@ -1468,23 +1518,14 @@ export type ProviderCliUpdateResult = {
 
 // ---------------------------
 
-//----------------- QUICK SETTINGS PANEL ------------
+//----------------- CHAT PREFERENCE TOGGLES ------------
 
-/** Identifier of a boolean user preference exposed in the quick settings panel; use it as the key when reading or writing one preference. */
+/** Identifier of a boolean chat preference the sidebar's profile menu switches; use it as the key when reading or writing one preference. */
 export type PreferenceToggleKey =
   | 'showRawParameters'
   | 'showThinking'
   | 'sendByCtrlEnter'
   | 'voiceEnabled';
-
-/** The full set of quick settings booleans keyed by PreferenceToggleKey, held together so the panel can read every toggle from one object. */
-export type QuickSettingsPreferences = Record<PreferenceToggleKey, boolean>;
-
-/** Which content area the quick settings panel is showing: 'settings' (preference toggles) or 'commands' (slash-command list); persisted with the pin state and used by the tab bar and the panel view. */
-export type QuickSettingsTab = 'settings' | 'commands';
-
-/** Inline style for the quick settings drag handle, produced by the drag hook from the stored handle position and applied by the handle component. */
-export type QuickSettingsHandleStyle = CSSProperties;
 
 // ---------------------------
 
@@ -1696,10 +1737,8 @@ export type SidebarProjectListProps = SessionRowActions & {
   getProjectSessions: (project: Project) => SessionWithProvider[];
   onLoadMoreSessions: (projectId: string) => void;
   loadingMoreProjects: Set<string>;
-  isProjectStarred: (projectId: string) => boolean;
   onToggleProject: (projectId: string) => void;
   onProjectSelect: (project: Project) => void;
-  onToggleStarProject: (projectId: string) => void;
   onStartEditingProject: (project: Project) => void;
   onCancelEditingProject: () => void;
   onSaveProjectName: (projectId: string, nextName: string) => void;

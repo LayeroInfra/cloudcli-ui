@@ -83,11 +83,11 @@ const listProps = (
   activeSessions: NO_SESSION_IDS,
   backgroundSessionIds: NO_SESSION_IDS,
   attentionSessionIds: NO_SESSION_IDS,
-  isProjectStarred: () => false,
+ 
   onRenameDraftChange: noop,
   onToggleProject: noop,
   onProjectSelect: noop,
-  onToggleStarProject: noop,
+ 
   onStartEditingProject: noop,
   onCancelEditingProject: noop,
   onSaveProjectName: noop,

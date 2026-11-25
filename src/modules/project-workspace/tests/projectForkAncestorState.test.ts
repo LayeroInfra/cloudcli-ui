@@ -68,13 +68,13 @@ test('loading subsequent pages excludes ancestor context from the offset and ded
     sessions: [{ ...middle, forkAncestors: [root] }], sessionMeta: { total: 3, hasMore: true },
   }) });
   await act(async () => { await result.current.loadMoreProjectSessions('project'); });
-  assert.deepEqual(mocks.projectSessions.mock.calls[0], ['project', { limit: 20, offset: 1 }]);
+  assert.deepEqual(mocks.projectSessions.mock.calls[0], ['project', { limit: 15, offset: 1 }]);
   assert.deepEqual(result.current.projects[0].sessions?.map((session) => session.id).sort(), ['leaf', 'middle']);
   mocks.projectSessions.mockResolvedValueOnce({ ok: true, json: async () => ({
     sessions: [root], sessionMeta: { total: 3, hasMore: false },
   }) });
   await act(async () => { await result.current.loadMoreProjectSessions('project'); });
-  assert.deepEqual(mocks.projectSessions.mock.calls[1], ['project', { limit: 20, offset: 2 }]);
+  assert.deepEqual(mocks.projectSessions.mock.calls[1], ['project', { limit: 15, offset: 2 }]);
   assert.equal(result.current.projects[0].sessions?.length, 3);
   assert.equal(result.current.projects[0].sessionMeta?.hasMore, false);
 });

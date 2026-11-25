@@ -85,6 +85,10 @@ const header = (activeTab: AppTab) => (
       shouldShowBrowserTab={false}
       isMobile={false}
       onMenuClick={() => undefined}
+      onOpenSession={() => undefined}
+      background={{ open: false, onToggle: () => undefined, runningCount: 0 }}
+      terminal={{ open: false, onToggle: () => undefined }}
+      browser={{ open: false, onToggle: () => undefined }}
       onRenameSession={async () => true}
     />
   </WebSocketProvider>

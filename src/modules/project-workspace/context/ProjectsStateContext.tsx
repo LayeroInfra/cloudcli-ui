@@ -14,6 +14,7 @@ type ProjectSidebarState = Pick<
 
 type ProjectMainState = Pick<
   ProjectsState,
+  | 'projects'
   | 'selectedProject'
   | 'selectedSession'
   | 'activeTab'
@@ -86,6 +87,9 @@ export function ProjectsStateProvider({
 
   const mainState = useMemo<ProjectMainState>(
     () => ({
+      // Read by the header's session lineage and the background-processes panel,
+      // which name sessions outside the selected one.
+      projects: state.projects,
       selectedProject: state.selectedProject,
       selectedSession: state.selectedSession,
       activeTab: state.activeTab,
@@ -107,6 +111,7 @@ export function ProjectsStateProvider({
       state.isLoadingProjects,
       state.newSessionTrigger,
       state.openSettings,
+      state.projects,
       state.refreshProjectsSilently,
       state.registerOptimisticSession,
       state.renameSession,

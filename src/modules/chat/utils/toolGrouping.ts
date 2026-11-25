@@ -69,7 +69,12 @@ function rendersNothing(message: ChatMessage, showThinking: boolean): boolean {
   return Boolean(message.isThinking && !showThinking);
 }
 
-function parseToolInput(toolInput: unknown): unknown {
+/**
+ * A chat row's tool input as an object: rows carry it as pretty-printed JSON
+ * (see useChatMessages), so readers of its fields must parse it first. Used
+ * here and by chat's background-task and current-action readers.
+ */
+export function parseToolInput(toolInput: unknown): unknown {
   if (typeof toolInput !== 'string') {
     return toolInput;
   }

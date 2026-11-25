@@ -125,18 +125,7 @@ export const sortProjects = (
   const byName = [...projects];
 
   byName.sort((projectA, projectB) => {
-    // Star order now comes from backend `projects.isStarred`.
-    const aStarred = Boolean(projectA.isStarred);
-    const bStarred = Boolean(projectB.isStarred);
-
-    if (aStarred && !bStarred) {
-      return -1;
-    }
-
-    if (!aStarred && bStarred) {
-      return 1;
-    }
-
+    // Project stars were removed from the UI, so they no longer reorder the list.
     if (projectSortOrder === 'date') {
       return getProjectLastActivity(projectB).getTime() - getProjectLastActivity(projectA).getTime();
     }

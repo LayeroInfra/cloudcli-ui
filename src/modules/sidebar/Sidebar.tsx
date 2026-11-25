@@ -8,7 +8,7 @@ import { useSidebarController } from '@/modules/sidebar/hooks/useSidebarControll
 import { useTaskMaster, useTasksSettings } from '@/modules/task-master';
 import { usePaletteOps } from '@/modules/command-palette';
 import { useBackgroundSessionIdSet, useBusySessionIdSet } from '@/shared/context/SessionProtectionContext';
-import type { LLMProvider, LoadingProgress, MCPServerStatus, Project, ProjectSession, SidebarProjectListProps } from '@/shared/types';
+import type { LLMProvider, LoadingProgress, MCPServerStatus, Project, ProjectSession, SettingsMainTab, SidebarProjectListProps } from '@/shared/types';
 import SidebarCollapsed from '@/modules/sidebar/SidebarCollapsed';
 import SidebarContent from '@/modules/sidebar/SidebarContent';
 import SidebarModals from '@/modules/sidebar/SidebarModals';
@@ -30,7 +30,7 @@ type SidebarProps = {
   isLoading: boolean;
   loadingProgress: LoadingProgress | null;
   onRefresh: () => Promise<void> | void;
-  onShowSettings: () => void;
+  onShowSettings: (tab?: SettingsMainTab) => void;
   showSettings: boolean;
   settingsInitialTab: string;
   onCloseSettings: () => void;
@@ -114,9 +114,7 @@ function Sidebar({
     loadMoreRecentConversations,
     toggleProject,
     handleSessionClick,
-    toggleStarProject,
-    isProjectStarred,
-    getProjectSessions,
+getProjectSessions,
     loadingMoreProjects,
     loadMoreSessionsForProject,
     startEditingProject,
@@ -214,11 +212,9 @@ function Sidebar({
     activeSessions,
     backgroundSessionIds,
     attentionSessionIds,
-    isProjectStarred,
-    onRenameDraftChange: updateRenameDraft,
+onRenameDraftChange: updateRenameDraft,
     onToggleProject: toggleProject,
     onProjectSelect: handleProjectSelect,
-    onToggleStarProject: toggleStarProject,
     onStartEditingProject: startEditingProject,
     onCancelEditingProject: cancelRename,
     onSaveProjectName: handleSaveProjectName,
@@ -280,63 +276,9 @@ function Sidebar({
             isMobile={isMobile}
             isLoading={isLoading}
             projects={projects}
-            runningSessionsCount={runningSessionsCount}
-            archivedProjects={archivedProjects}
-            archivedSessions={archivedSessions}
-            archivedSessionsCount={archivedSessionsCount}
-            isArchivedSessionsLoading={isArchivedSessionsLoading}
-            recentConversations={recentConversations}
-            recentConversationsTotal={recentConversationsTotal}
-            recentConversationsHasMore={recentConversationsHasMore}
-            isRecentConversationsLoading={isRecentConversationsLoading}
-            isLoadingMoreRecentConversations={isLoadingMoreRecentConversations}
-            recentConversationsError={recentConversationsError}
             searchFilter={searchFilter}
             onSearchFilterChange={setSearchFilter}
             onClearSearchFilter={() => setSearchFilter('')}
-            searchMode={searchMode}
-            onSearchModeChange={(mode) => {
-              setSearchMode(mode);
-              if (mode === 'projects') clearConversationResults();
-            }}
-            conversationResults={conversationResults}
-            isSearching={isSearching}
-            searchProgress={searchProgress}
-            onRestoreArchivedProject={restoreArchivedProject}
-            onLoadMoreRecentConversations={loadMoreRecentConversations}
-            onRetryRecentConversations={reloadRecentConversations}
-            onArchivedSessionClick={openArchivedSession}
-            onRestoreArchivedSession={restoreArchivedSession}
-            onDeleteArchivedSession={(session) => {
-              showDeleteSessionConfirmation(session.sessionId, session.sessionTitle);
-            }}
-            onConversationResultClick={(projectId: string | null, sessionId: string, provider: string, messageTimestamp?: string | null, messageSnippet?: string | null) => {
-              // `projectId` (DB key) is the canonical identifier post-migration.
-              // The server emits null when it can't resolve a project row for
-              // the search hit; treat that as "no project" and still navigate
-              // to the session so the user can open it from the URL.
-              const resolvedProvider = (provider || 'claude') as LLMProvider;
-              const project = projectId ? projects.find(p => p.projectId === projectId) : null;
-              const searchTarget = { __searchTargetTimestamp: messageTimestamp || null, __searchTargetSnippet: messageSnippet || null };
-              const sessionObj = {
-                id: sessionId,
-                __provider: resolvedProvider,
-                __projectId: projectId ?? undefined,
-                ...searchTarget,
-              };
-              if (project) {
-                handleProjectSelect(project);
-                const sessions = getProjectSessions(project);
-                const existing = sessions.find(s => s.id === sessionId);
-                if (existing) {
-                  handleSessionClick({ ...existing, ...searchTarget }, project.projectId);
-                } else {
-                  handleSessionClick(sessionObj, project.projectId);
-                }
-              } else {
-                handleSessionClick(sessionObj, projectId ?? '');
-              }
-            }}
             onRefresh={() => {
               void refreshProjects();
             }}

@@ -356,3 +356,41 @@ test('getStatus: passes the subscription override through to the wire shape, and
     });
   });
 });
+
+test('getStatus: reads the account email and organization from ~/.claude.json and the plan from the credentials file', async () => {
+  await withTempHome(async (homeDir) => {
+    await writeCredentialsFile(homeDir, {
+      claudeAiOauth: {
+        accessToken: 'valid-token',
+        expiresAt: Date.now() + 60 * 60 * 1000,
+        subscriptionType: 'max',
+      },
+    });
+    await writeFile(
+      path.join(homeDir, '.claude.json'),
+      JSON.stringify({ oauthAccount: { emailAddress: 'dev@example.com', organizationName: 'Acme' } }),
+    );
+
+    await withEnv({}, async () => {
+      const status = await getStatusWithCliInstalled(new ClaudeProviderAuth());
+      assert.equal(status.email, 'dev@example.com');
+      assert.equal(status.plan, 'max');
+      assert.equal(status.organization, 'Acme');
+    });
+  });
+});
+
+test('getStatus: an API key reports no plan or organization', async () => {
+  await withTempHome(async (homeDir) => {
+    await writeCredentialsFile(homeDir, {
+      claudeAiOauth: { accessToken: 'valid-token', expiresAt: Date.now() + 60 * 60 * 1000, subscriptionType: 'pro' },
+    });
+
+    await withEnv({ ANTHROPIC_API_KEY: 'sk-test' }, async () => {
+      const status = await getStatusWithCliInstalled(new ClaudeProviderAuth());
+      assert.equal(status.method, 'api_key');
+      assert.equal('plan' in status, false);
+      assert.equal('organization' in status, false);
+    });
+  });
+});

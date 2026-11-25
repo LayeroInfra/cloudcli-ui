@@ -13,6 +13,7 @@ import type {
   ChatMessage,
   Project,
   ProjectSession,
+  SessionBackgroundTask,
   SessionEstablishedContext,
   SessionNavigationOptions,
 } from '@/shared/types';
@@ -29,6 +30,8 @@ import {
 } from '@/shared/context/SessionProtectionContext';
 import ChatMessagesPane from '@/modules/chat/transcript/ChatMessagesPane';
 import ChatComposer from '@/modules/chat/composer/ChatComposer';
+import { getCurrentAgentAction } from '@/modules/chat/utils/currentAgentAction';
+import { listSessionBackgroundTasks } from '@/modules/chat/utils/backgroundTasks';
 import CommandResultModal from '@/modules/chat/modals/CommandResultModal';
 
 type ChatInterfaceProps = {
@@ -48,6 +51,8 @@ type ChatInterfaceProps = {
   newSessionTrigger?: number;
   onTaskClick?: (...args: unknown[]) => void;
   onShowAllTasks?: (() => void) | null;
+  /** Receives the open session's background tasks, finished ones included, whenever they change. */
+  onBackgroundTasksChange?: (tasks: SessionBackgroundTask[]) => void;
 };
 
 /**
@@ -71,6 +76,7 @@ function ChatInterface({
   externalMessageUpdate,
   newSessionTrigger,
   onShowAllTasks,
+  onBackgroundTasksChange,
 }: ChatInterfaceProps) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { subscribe, isConnected } = useWebSocket();
@@ -226,20 +232,12 @@ function ChatInterface({
     }
   }, [addMessage, currentSessionId, requestLatestMessages, selectedSession?.id, setTokenBudget, supportsContextClearing, t]);
 
-  // The button asks first: unlike a typed `/clear`, a click can be a slip.
-  const handleClearContextClick = useCallback(() => {
-    if (window.confirm(t('misc.clearContextConfirm'))) {
-      void handleClearContext();
-    }
-  }, [handleClearContext, t]);
-
   const {
     input,
     setInput,
     textareaRef,
     inputHighlightRef,
     isTextareaExpanded,
-    slashCommandsCount,
     filteredCommands,
     frequentCommands,
     commandQuery,
@@ -247,7 +245,6 @@ function ChatInterface({
     selectedCommandIndex,
     resetCommandMenuState,
     handleCommandSelect,
-    handleToggleCommandMenu,
     showFileDropdown,
     filteredFiles,
     selectedFileIndex,
@@ -270,22 +267,18 @@ function ChatInterface({
     deleteQueuedDraft,
     pendingSteers,
     handleSteerOutcome,
-    handleVoiceTranscript,
     handleInputChange,
     handleKeyDown,
     handlePaste,
     handleTextareaClick,
     handleTextareaInput,
     syncInputOverlayScroll,
-    handleClearInput,
     handleAbortSession,
     handlePermissionDecision,
     handleGrantToolPermission,
     handleInputFocusChange,
-    isInputFocused,
     commandModalPayload,
     closeCommandModal,
-    showCostModal,
     editingAnchorId,
     beginEditMessage,
     cancelEditMessage,
@@ -414,26 +407,25 @@ function ChatInterface({
     }
   }, [onNavigateToSession, selectedSession?.id]);
 
-  const { scheduledMessages, schedule: scheduleMessage, cancel: cancelScheduledMessage } =
+  const { scheduledMessages, cancel: cancelScheduledMessage } =
     useScheduledMessages(currentSessionId || selectedSession?.id || null, subscribe);
 
-  /**
-   * Hands the composer's current text to the server to send later, and clears
-   * the box as a send would — the message has left the composer either way.
-   */
-  const handleScheduleMessage = useCallback(async (scheduledFor: Date) => {
-    const content = input.trim();
-    if (!content) return;
+  // What the running turn is doing now, for the composer's status line. Only
+  // computed while something runs, so an idle transcript costs nothing.
+  const currentAgentAction = useMemo(
+    () => (sessionActivity && !sessionActivity.background ? getCurrentAgentAction(chatMessages) : null),
+    [chatMessages, sessionActivity],
+  );
 
-    const scheduled = await scheduleMessage({
-      content,
-      scheduledFor,
-      options: { model: currentProviderModel, effort: currentProviderEffort, permissionMode },
-    });
-    if (scheduled) {
-      setInput('');
-    }
-  }, [currentProviderEffort, currentProviderModel, input, permissionMode, scheduleMessage, setInput]);
+  // The workspace's background-tasks drawer lists these; handed up only when
+  // a task appears or changes state or outcome, not on every streamed token.
+  const backgroundTasks = useMemo(() => listSessionBackgroundTasks(chatMessages), [chatMessages]);
+  const backgroundTasksKey = backgroundTasks.map((task) => `${task.toolId}:${task.status}:${task.taskId ?? ''}:${task.result?.length ?? 0}`).join('|');
+  useEffect(() => {
+    onBackgroundTasksChange?.(backgroundTasks);
+    // The key stands for the list's content; the list itself is a new array on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backgroundTasksKey, onBackgroundTasksChange]);
 
   const permissionContextValue = useMemo(() => ({
     pendingPermissionRequests,
@@ -580,6 +572,9 @@ function ChatInterface({
           handlePermissionDecision={handlePermissionDecision}
           handleGrantToolPermission={handleGrantToolPermission}
           activity={sessionActivity}
+          currentAction={currentAgentAction}
+          contextSessionId={currentSessionId || selectedSession?.id || null}
+          contextRefreshKey={`${isProcessing}:${String((tokenBudget as { used?: unknown } | null)?.used ?? '')}`}
           isLoading={isProcessing}
           onAbortSession={handleAbortSession}
           canAbortSession={canAbortSession}
@@ -594,18 +589,10 @@ function ChatInterface({
           availableModelOptions={currentProviderModelOptions}
           onSelectModel={handleSelectComposerModel}
           modelsLoading={providerModelsLoading}
-          tokenBudget={tokenBudget}
-          onShowTokenUsage={showCostModal}
-          onClearContext={supportsContextClearing && (currentSessionId || selectedSession?.id) ? handleClearContextClick : undefined}
           isEditingSentMessage={Boolean(editingAnchorId)}
           onCancelEditMessage={cancelEditMessage}
           scheduledMessages={scheduledMessages}
-          onScheduleMessage={handleScheduleMessage}
           onCancelScheduledMessage={cancelScheduledMessage}
-          slashCommandsCount={slashCommandsCount}
-          onToggleCommandMenu={handleToggleCommandMenu}
-          hasInput={Boolean(input.trim())}
-          onClearInput={handleClearInput}
           onSubmit={handleSubmit}
           isDragActive={isDragActive}
           queuedDraft={queuedDraft}
@@ -641,14 +628,12 @@ function ChatInterface({
           renderInputWithMentions={renderInputWithMentions}
           textareaRef={textareaRef}
           input={input}
-          onVoiceTranscript={handleVoiceTranscript}
           onInputChange={handleInputChange}
           onTextareaClick={handleTextareaClick}
           onTextareaKeyDown={handleKeyDown}
           onTextareaPaste={handlePaste}
           onTextareaScrollSync={syncInputOverlayScroll}
           onTextareaInput={handleTextareaInput}
-          isInputFocused={isInputFocused}
           onInputFocusChange={handleInputFocusChange}
           placeholder={t('input.placeholder', { provider: selectedProviderLabel })}
           isTextareaExpanded={isTextareaExpanded}
