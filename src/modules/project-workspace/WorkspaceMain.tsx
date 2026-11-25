@@ -7,7 +7,7 @@ import { PluginTabContent } from '@/modules/plugins';
 import { BrowserUsePanel, useBrowserUseEnabled } from '@/modules/browser-use';
 import { usePaletteOpsRegister } from '@/modules/command-palette';
 import { TaskMasterPanel, useTaskMasterProjectSync, useTasksSettings } from '@/modules/task-master';
-import type { AppTab, DirectoryRevealRequest, Project, ProjectSession, SessionEstablishedContext, SessionNavigationOptions, SettingsMainTab } from '@/shared/types';
+import type { AppTab, DirectoryRevealRequest, Project, ProjectSession, SessionBackgroundTask, SessionEstablishedContext, SessionNavigationOptions, SettingsMainTab } from '@/shared/types';
 import { useUiPreferences } from '@/shared/context/UiPreferencesContext';
 import { useFileOpenResolver } from '@/modules/project-workspace/hooks/useFileOpenResolver';
 import { EditorSidebar, useEditorSidebar } from '@/modules/code-editor';
@@ -80,10 +80,10 @@ function WorkspaceMain({
   const { openPanels, togglePanel, setPanelOpen } = useWorkspacePanels();
   const processingSessions = useProcessingSessions();
   const runningProcessCount = countRunningProcesses(processingSessions);
+  // The open session's background tasks, finished ones included, as the chat
+  // read them from its transcript; listed by the background-tasks drawer.
+  const [sessionBackgroundTasks, setSessionBackgroundTasks] = useState<SessionBackgroundTask[]>([]);
   const selectedSessionId = selectedSession?.id ?? null;
-  // Flips when the selected session starts or finishes a turn, so the header's
-  // context meter refetches after each reply instead of polling.
-  const usageRefreshKey = `${selectedSessionId ? processingSessions.has(selectedSessionId) : false}:${externalMessageUpdate}`;
 
   const openSession = useCallback((sessionId: string) => {
     setActiveTab('chat');
@@ -190,8 +190,6 @@ function WorkspaceMain({
         onMenuClick={onMenuClick}
         onRenameSession={onRenameSession}
         onOpenSession={openSession}
-        onShowSettings={onShowSettings}
-        usageRefreshKey={usageRefreshKey}
         background={{ open: openPanels.background, onToggle: () => togglePanel('background'), runningCount: runningProcessCount }}
         terminal={{ open: openPanels.terminal, onToggle: () => togglePanel('terminal') }}
         browser={{ open: openPanels.browser, onToggle: () => togglePanel('browser') }}
@@ -219,6 +217,7 @@ function WorkspaceMain({
                 externalMessageUpdate={externalMessageUpdate}
                 newSessionTrigger={newSessionTrigger}
                 onShowAllTasks={tasksEnabled ? showAllTasks : null}
+                onBackgroundTasksChange={setSessionBackgroundTasks}
               />
             </WorkspaceErrorBoundary>
           </div>
@@ -296,6 +295,7 @@ function WorkspaceMain({
         onClose={closeBackgroundPanel}
         projects={projects}
         activeSessionId={selectedSessionId}
+        sessionTasks={sessionBackgroundTasks}
         sendMessage={sendMessage}
         onOpenSession={openSession}
       />

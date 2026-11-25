@@ -38,7 +38,6 @@ const optionsProps = (
   onStartEditingSession: noop,
   onCancelEditingSession: noop,
   onSaveEditingSession: noop,
-  onArchiveSession: noop,
   onDeleteSession: noop,
   t,
   ...overrides,
@@ -46,42 +45,30 @@ const optionsProps = (
 
 const openMenu = async () => {
   await act(async () => {
-    fireEvent.click(screen.getByRole('button', { name: 'Session options for Session one' }));
+    fireEvent.click(screen.getByRole('button', { name: 'sessions.options: Session one' }));
   });
 };
 
-test('the desktop menu offers archive and delete as separate items', async () => {
-  render(<SessionOptions {...optionsProps()} />);
-  await openMenu();
-
-  const archive = screen.getByRole('menuitem', { name: /Archive session/ });
-  const remove = screen.getByRole('menuitem', { name: /Delete session/ });
-  assert.equal(screen.queryByRole('menuitem', { name: /Archive or delete/ }), null);
-  // Only delete is styled as destructive.
-  assert.ok(!/red/.test(archive.className));
-  assert.ok(/red/.test(remove.className));
-});
-
-test('archive archives directly and delete asks for the permanent delete', async () => {
-  const onArchiveSession = vi.fn();
+test('one settings menu holds rename and delete, and no archive', async () => {
+  const onStartEditingSession = vi.fn();
   const onDeleteSession = vi.fn();
-  render(<SessionOptions {...optionsProps({ onArchiveSession, onDeleteSession })} />);
+  render(<SessionOptions {...optionsProps({ onStartEditingSession, onDeleteSession })} />);
+  await openMenu();
+
+  assert.equal(screen.queryByRole('menuitem', { name: /archive/i }), null);
+  const remove = screen.getByRole('menuitem', { name: /sessions\.delete/ });
+  assert.ok(/red/.test(remove.className));
+
+  fireEvent.click(screen.getByRole('menuitem', { name: /sessions\.rename/ }));
+  assert.deepEqual(onStartEditingSession.mock.calls, [['project-1', 'session-1', 'Session one']]);
 
   await openMenu();
-  fireEvent.click(screen.getByRole('menuitem', { name: /Archive session/ }));
-  assert.deepEqual(onArchiveSession.mock.calls, [['session-1']]);
-  assert.equal(onDeleteSession.mock.calls.length, 0);
-
-  await openMenu();
-  fireEvent.click(screen.getByRole('menuitem', { name: /Delete session/ }));
+  fireEvent.click(screen.getByRole('menuitem', { name: /sessions\.delete/ }));
   assert.deepEqual(onDeleteSession.mock.calls, [['session-1', 'Session one']]);
-  assert.equal(onArchiveSession.mock.calls.length, 1);
 });
 
-test('a running session offers neither archive nor delete', async () => {
+test('a running session cannot be deleted from the menu', async () => {
   render(<SessionOptions {...optionsProps({ isProcessing: true })} />);
   await openMenu();
-
-  assert.equal(screen.queryByRole('menuitem', { name: /Archive session/ }), null);
-  assert.equal(screen.queryByRole('menuitem', { name: /Delete session/ }), null);
+  assert.equal(screen.queryByRole('menuitem', { name: /sessions\.delete/ }), null);
 });

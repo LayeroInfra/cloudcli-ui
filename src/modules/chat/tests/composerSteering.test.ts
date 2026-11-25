@@ -209,9 +209,23 @@ test('a message the agent read before the run ended is not restored', async () =
   assert.equal(view.result.current.input, '');
 });
 
-test('Enter during a turn still queues, as before', async () => {
+test('Enter during a turn steers into it, as in Claude Code', async () => {
   const { view, sent } = render();
-  await submit(view, 'after this');
+  await submit(view, 'look at the tests too');
+
+  assert.equal(steerFrames(sent).length, 1);
+  assert.equal(steerFrames(sent)[0].content, 'look at the tests too');
+  assert.equal(queued.get('session-1'), undefined);
+});
+
+test('Queue from the send menu still waits for the turn to end', async () => {
+  const { view, sent } = render();
+  act(() => {
+    view.result.current.setInput('after this');
+  });
+  await act(async () => {
+    await view.result.current.handleSendMenuChoice('queue');
+  });
 
   assert.equal(steerFrames(sent).length, 0);
   assert.equal(queued.get('session-1')?.content, 'after this');

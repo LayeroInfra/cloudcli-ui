@@ -482,6 +482,25 @@ const addProviderModelEffortColumns = (db: Database): void => {
   addColumnToTableIfNotExists(db, 'provider_models', columnNames, 'effort_default', 'TEXT DEFAULT NULL');
 };
 
+/**
+ * Forces one full transcript rescan so the Claude synchronizer can backfill
+ * fork links from the `forkedFrom` stamps in transcripts it indexed before it
+ * read them (CLI forks, imported or rebuilt databases). Runs once, recorded in
+ * app_config; a full rescan is the same work a fresh install does.
+ */
+const CLAUDE_FORK_BACKFILL_KEY = 'migration.claude_fork_links_rescan_v1';
+const resetScanCursorForForkBackfill = (db: Database): void => {
+  const done = db.prepare('SELECT 1 FROM app_config WHERE key = ?').get(CLAUDE_FORK_BACKFILL_KEY);
+  if (done) {
+    return;
+  }
+  console.log('Running migration: Rescanning transcripts to backfill Claude fork links');
+  db.transaction(() => {
+    db.prepare('UPDATE scan_state SET last_scanned_at = NULL WHERE id = 1').run();
+    db.prepare("INSERT INTO app_config (key, value) VALUES (?, '1')").run(CLAUDE_FORK_BACKFILL_KEY);
+  })();
+};
+
 const ensureProjectsForSessionPaths = (db: Database): void => {
   if (!tableExists(db, 'sessions')) {
     return;
@@ -573,6 +592,7 @@ export const runMigrations = (db: Database) => {
     }
 
     db.exec(LAST_SCANNED_AT_SQL);
+    resetScanCursorForForkBackfill(db);
     console.log('Database migrations completed successfully');
   } catch (error: any) {
     console.error('Error running migrations:', error.message);

@@ -1180,9 +1180,10 @@ export function useChatComposerState({
         }
 
         // Steering sends the message into the running turn instead of after
-        // it, when the send menu asked for that and the provider can take it.
-        // A slash command is a turn of its own, so it always waits in the queue.
-        const steersIntoTurn = submitOptions?.steerIntoTurn === true
+        // it, as Claude Code does with Enter: it is the default whenever the
+        // provider can take it, and the send menu's Queue opts out. A slash
+        // command is a turn of its own, so it always waits in the queue.
+        const steersIntoTurn = (submitOptions?.steerIntoTurn === true || submitOptions?.presetBackgroundChoice !== 'queue')
           && supportsSteering
           && Boolean(sessionKey)
           && !currentInput.trimStart().startsWith('/');

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { render, screen } from '@testing-library/react';
 import React from 'react';
-import { test, vi } from 'vitest';
+import { test } from 'vitest';
 
 import '@/modules/i18n';
 import ActivityIndicator from '@/modules/chat/composer/ActivityIndicator';
@@ -35,8 +35,7 @@ const backgroundActivity = (tasks: BackgroundTaskSummary[]): SessionActivity => 
 });
 
 test('a background-only session names its workflow, counts from its start and offers no Stop', () => {
-  const onAbort = vi.fn();
-  const { container } = render(<ActivityIndicator activity={backgroundActivity([task()])} onAbort={onAbort} />);
+  const { container } = render(<ActivityIndicator activity={backgroundActivity([task()])} />);
 
   assert.match(container.textContent ?? '', /Background work…/);
   assert.match(container.textContent ?? '', /Workflow frontend-architecture-audit/);
@@ -73,15 +72,18 @@ test('an agent and a command are named by what they were asked to do; several ta
   assert.doesNotMatch(nested.container.textContent ?? '', /2 tasks/);
 });
 
-test('a response in flight still shows the Stop button and the primary dot', () => {
+test('a response in flight says what the agent is doing, with the primary dot and no Stop of its own', () => {
   const { container } = render(
     <ActivityIndicator
-      activity={{ statusText: 'Thinking', canInterrupt: true, startedAt: Date.now() }}
-      onAbort={() => {}}
+      activity={{ statusText: null, canInterrupt: true, startedAt: Date.now() }}
+      action={{ verb: 'running', defaultVerb: 'Running', target: 'npm test' }}
     />,
   );
 
-  assert.ok(screen.getByRole('button', { name: 'Stop' }));
+  assert.match(container.textContent ?? '', /Running… ?npm test/);
+  assert.match(container.textContent ?? '', /esc to interrupt/);
+  // Stopping is the composer's send button, which turns into ■ during a turn.
+  assert.equal(screen.queryByRole('button'), null);
   assert.ok(container.querySelector('.bg-primary'));
   assert.equal(container.querySelector('.bg-purple-500'), null);
 });

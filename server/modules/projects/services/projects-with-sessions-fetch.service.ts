@@ -76,7 +76,8 @@ export type ProjectSessionsPageApiView = {
   };
 };
 
-const DEFAULT_PROJECT_SESSIONS_PAGE_SIZE = 20;
+/** Matches the sidebar's page (PROJECT_SESSIONS_PAGE_SIZE on the client). */
+const DEFAULT_PROJECT_SESSIONS_PAGE_SIZE = 15;
 const MAX_PROJECT_SESSIONS_PAGE_SIZE = 200;
 
 /**

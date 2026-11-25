@@ -78,6 +78,13 @@ export const DEFAULT_EFFORT_VALUE = 'default';
 
 // ---------------------------
 
+//----------------- SIDEBAR SESSION PAGINATION ------------
+
+/** Sessions the sidebar shows per project page; "Load more" fetches the next page of the same size. */
+export const PROJECT_SESSIONS_PAGE_SIZE = 15;
+
+// ---------------------------
+
 //----------------- FILE UPLOAD LIMITS ------------
 
 /** Largest single file the upload endpoint accepts, in megabytes. Source of truth for the two derived limits below. */

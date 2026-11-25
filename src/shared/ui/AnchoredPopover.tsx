@@ -2,21 +2,25 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { cn } from '@/shared/utils';
 
-type WorkspacePopoverProps = {
+type AnchoredPopoverProps = {
   /** Renders the trigger; receives whether the popover is open and the toggle. */
   trigger: (state: { open: boolean; toggle: () => void }) => ReactNode;
   /** Renders the popover body; `close` dismisses it after an action. */
   children: (close: () => void) => ReactNode;
   align?: 'left' | 'right';
+  /** Which side of the trigger the popover opens on; 'top' for triggers near the bottom of the screen. */
+  side?: 'top' | 'bottom';
   className?: string;
+  /** Classes for the wrapper around trigger and popover, e.g. `flex-1` so a stretched trigger can actually stretch. */
+  rootClassName?: string;
 };
 
 /**
- * Rendered by the workspace header's account menu and session lineage: a
- * small anchored popover that closes on outside click or Escape. Escape is
- * stopped here so it does not also abort the running chat turn.
+ * Used by the project-workspace session lineage menu and the sidebar's account
+ * block: a small anchored popover that closes on outside click or Escape.
+ * Escape is stopped here so it does not also abort the running chat turn.
  */
-export default function WorkspacePopover({ trigger, children, align = 'left', className }: WorkspacePopoverProps) {
+export function AnchoredPopover({ trigger, children, align = 'left', side = 'bottom', className, rootClassName }: AnchoredPopoverProps) {
   // Whether the popover is showing.
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -41,13 +45,14 @@ export default function WorkspacePopover({ trigger, children, align = 'left', cl
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className={cn('relative', rootClassName)}>
       {trigger({ open, toggle: () => setOpen((value) => !value) })}
       {open && (
         <div
           role="dialog"
           className={cn(
-            'absolute top-full z-50 mt-1.5 min-w-[16rem] rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg',
+            'absolute z-50 min-w-[16rem] rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg',
+            side === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
             align === 'right' ? 'right-0' : 'left-0',
             className,
           )}

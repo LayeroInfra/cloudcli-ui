@@ -6,7 +6,6 @@ import type { TFunction } from 'i18next';
 import { test, vi } from 'vitest';
 
 import SidebarProjectSessions from '@/modules/sidebar/SidebarProjectSessions';
-import SidebarRecentConversations from '@/modules/sidebar/SidebarRecentConversations';
 import type { SessionWithProvider } from '@/shared/types';
 
 const compact = vi.hoisted(() => ({ value: false }));
@@ -30,7 +29,7 @@ const props = (overrides: Partial<ComponentProps<typeof SidebarProjectSessions>>
   currentTime: new Date('2026-10-18T00:00:00Z'), sessionRenameId: null, sessionRenameDraft: '',
   onRenameDraftChange: noop, onStartEditingSession: noop, onCancelEditingSession: noop,
   onSaveEditingSession: noop, onProjectSelect: noop, onSessionSelect: noop, onArchiveSession: noop, onDeleteSession: noop,
-  onForkSession: noop, onLoadMoreSessions: noop, onNewSession: noop, selectedSessionIds: null,
+  onForkSession: noop, onLoadMoreSessions: noop, selectedSessionIds: null,
   onSetSessionSelection: noop, onToggleSessionSelected: noop, onCancelSessionSelection: noop,
   onDeleteSelectedSessions: noop, t, ...overrides,
 });
@@ -59,23 +58,21 @@ test.each([false, true])('Projects nests forks and preserves row actions in comp
   assert.deepEqual(rowIds(container), ['root', 'child', 'leaf', 'unrelated']);
 });
 
-test.each([root, leaf])('the mobile fork tree archives $id without selecting or deleting it', async (session) => {
+test.each([root, leaf])('the mobile fork tree deletes $id without selecting it', async (session) => {
   compact.value = true;
-  const onArchiveSession = vi.fn();
   const onDeleteSession = vi.fn();
   const onSessionSelect = vi.fn();
   render(<SidebarProjectSessions {...props({
     sessions: [{ ...leaf, forkAncestors: [child, root] }],
-    onArchiveSession, onDeleteSession, onSessionSelect,
+    onDeleteSession, onSessionSelect,
   })} />);
 
   await act(async () => {
     fireEvent.click(screen.getByRole('button', { name: `Session options for ${session.summary}` }));
   });
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Archive session' }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete session' }));
 
-  assert.deepEqual(onArchiveSession.mock.calls, [[session.id]]);
-  assert.equal(onDeleteSession.mock.calls.length, 0);
+  assert.deepEqual(onDeleteSession.mock.calls, [[session.id, session.summary]]);
   assert.equal(onSessionSelect.mock.calls.length, 0);
   assert.equal(screen.queryByRole('dialog'), null);
 });
@@ -158,22 +155,3 @@ test('bulk selection includes displayed ancestor context and hidden forks, exclu
   assert.deepEqual([...onSetSessionSelection.mock.calls[0][0].sessionIds], ['root', 'leaf']);
 });
 
-test('Conversations stays flat and newest first even when sessions have fork metadata', () => {
-  const conversations = [child, unrelated, root].map((session) => ({
-    ...session, sessionId: session.id, provider: session.__provider, projectId: 'project',
-    projectDisplayName: 'Project', sessionTitle: session.summary!, lastActivity: null,
-  }));
-  const { container } = render(<SidebarRecentConversations
-    conversations={conversations} total={3} hasMore={false} isLoading={false} isLoadingMore={false} hasError={false}
-    selectedSession={null} currentTime={new Date()} t={t}
-    sessionActions={{
-      activeSessions: new Set(), backgroundSessionIds: new Set(), attentionSessionIds: new Set(),
-      activeRename: null, onRenameDraftChange: noop, onStartEditingSession: noop,
-      onCancelEditingSession: noop, onSaveEditingSession: noop, onArchiveSession: noop, onDeleteSession: noop,
-    }} onConversationSelect={noop} onLoadMore={noop} onRetry={noop}
-  />);
-  assert.deepEqual(Array.from(container.querySelectorAll('[data-testid="recent-conversation-row"]')).map((row) => row.getAttribute('href')),
-    ['/session/child', '/session/unrelated', '/session/root']);
-  assert.equal(container.querySelector('[data-testid="project-session-tree"]'), null);
-  assert.equal(container.querySelector('[aria-expanded]'), null);
-});

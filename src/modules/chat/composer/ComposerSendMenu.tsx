@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { ChevronUpIcon } from 'lucide-react';
+import { ArrowUpIcon, ChevronUpIcon } from 'lucide-react';
 
 import { useComposerMenuAnchor } from '@/modules/chat/hooks/useComposerMenuAnchor';
 import { Button } from '@/shared/ui/Button';
@@ -53,7 +53,9 @@ function ShortcutHint({ children }: { children: string }) {
 
 /**
  * Rendered by chat's ChatComposer in place of the send button while a turn is
- * written or only background work runs. The destructive choice (Stop, or
+ * written or only background work runs: a round ↑ that does what Enter does
+ * (steer into the turn when the provider can, else queue) and a small caret
+ * that opens every choice. The destructive choice (Stop, or
  * Send anyway over background work) is last and red, as in the
  * background-send dialog, so a tap on the first row can never stop or
  * override anything.
@@ -83,19 +85,36 @@ export default function ComposerSendMenu({ state, hasInput, hasText = hasInput, 
   // Enter only queues while a turn is written; during background work it
   // opens the "send anyway?" confirm dialog instead, so Queue gets no hint
   // there, matching that row's own description above.
-  const queueShortcut = state === 'responding'
-    ? (sendByCtrlEnter ? (isApplePlatform ? '⌘↵' : 'Ctrl+↵') : '↵')
-    : null;
+  const enterShortcut = sendByCtrlEnter ? (isApplePlatform ? '⌘↵' : 'Ctrl+↵') : '↵';
+  const queueShortcut = state === 'responding' && !supportsSteering ? enterShortcut : null;
   // Esc stops a running turn; background work has no key for Send anyway,
   // so the last row's hint follows the same gate as Queue's.
   const lastShortcut = state === 'responding' ? 'esc' : null;
 
+  // Enter's choice, for the round button: steering is the default while a
+  // turn is written, as in Claude Code; otherwise the message waits.
+  const primaryChoice: ComposerSendMenuChoice = state === 'responding' && supportsSteering ? 'steer' : 'queue';
+  const primaryLabel = primaryChoice === 'steer'
+    ? t('sendMenu.steer.label', { defaultValue: 'Steer' })
+    : t('sendMenu.queue.label', { defaultValue: 'Queue' });
+
   return (
     <>
       <Button
-        ref={triggerRef}
         type="button"
         variant="default"
+        size="icon"
+        disabled={!hasInput}
+        onClick={() => onSelect(primaryChoice)}
+        aria-label={primaryLabel}
+        title={primaryLabel}
+        className="h-8 w-8 shrink-0 rounded-full"
+      >
+        <ArrowUpIcon className="h-4 w-4" strokeWidth={2.5} />
+      </Button>
+      <Button
+        ref={triggerRef}
+        type="button"
         size="icon"
         onClick={() => {
           updateAnchor();
@@ -105,9 +124,10 @@ export default function ComposerSendMenu({ state, hasInput, hasText = hasInput, 
         aria-expanded={isOpen}
         aria-label={triggerLabel}
         title={triggerLabel}
-        className="h-10 w-10 shrink-0 rounded-lg"
+        variant="ghost"
+        className="h-8 w-6 shrink-0 rounded-md text-muted-foreground hover:text-foreground"
       >
-        <ChevronUpIcon className="h-5 w-5" />
+        <ChevronUpIcon className="h-4 w-4" />
       </Button>
 
       {isOpen && anchor && createPortal(
@@ -131,6 +151,7 @@ export default function ComposerSendMenu({ state, hasInput, hasText = hasInput, 
               role="menuitem"
               label={t('sendMenu.steer.label', { defaultValue: 'Steer' })}
               description={t('sendMenu.steer.description', { defaultValue: 'Send into this turn; read at the next tool call' })}
+              trailing={<ShortcutHint>{enterShortcut}</ShortcutHint>}
               onSelect={() => select('steer')}
             />
           )}

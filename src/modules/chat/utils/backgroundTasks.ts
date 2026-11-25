@@ -1,6 +1,8 @@
 import type { TFunction } from 'i18next';
 
-import type { BackgroundTaskStatus, BackgroundTaskSummary, ChatMessage, WorkflowAgentProgress } from '@/shared/types';
+import { parseToolInput } from '@/modules/chat/utils/toolGrouping';
+
+import type { BackgroundTaskStatus, BackgroundTaskSummary, ChatMessage, SessionBackgroundTask, WorkflowAgentProgress } from '@/shared/types';
 
 /**
  * Settles one background task's status from its two sources.
@@ -152,4 +154,72 @@ export function describeBackgroundTask(task: BackgroundTaskSummary, t: TFunction
     default:
       return t('claudeStatus.backgroundTask.agent', { description: task.description, defaultValue: 'Agent {{description}}' });
   }
+}
+
+/** The text of a tool result, whether the provider sent a string or content blocks. */
+function readResultText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((block) => (block && typeof block === 'object' && typeof (block as { text?: unknown }).text === 'string' ? (block as { text: string }).text : ''))
+      .filter(Boolean)
+      .join('\n');
+  }
+  return '';
+}
+
+/** Whether a tool call launched work that outlives it, rather than running in the turn. */
+function isBackgroundLaunch(message: ChatMessage): boolean {
+  if (message.workflow || message.taskStatus) return true;
+  const input = (parseToolInput(message.toolInput) ?? {}) as { run_in_background?: unknown };
+  if (input.run_in_background === true) return true;
+  const ack = message.toolResult?.toolUseResult as { backgroundTaskId?: unknown; status?: unknown; isAsync?: unknown } | undefined;
+  return Boolean(ack && (typeof ack.backgroundTaskId === 'string' || ack.status === 'async_launched' || ack.isAsync === true));
+}
+
+/**
+ * Used by chat's ChatInterface to hand the workspace's background-tasks drawer
+ * every background task of the open session, newest first: backgrounded
+ * commands, background agents and workflow runs, running or finished, each
+ * with what it reported. A command has no backend status of its own, so one
+ * whose result is still the launch acknowledgement counts as running.
+ */
+export function listSessionBackgroundTasks(messages: ChatMessage[]): SessionBackgroundTask[] {
+  const tasks: SessionBackgroundTask[] = [];
+  for (const message of messages) {
+    if (!message.isToolUse || !message.toolId || !isBackgroundLaunch(message)) continue;
+    const parsed = parseToolInput(message.toolInput);
+    const input = (parsed && typeof parsed === 'object' ? parsed : {}) as Record<string, unknown>;
+    const resultText = readResultText(message.toolResult?.content).trim();
+    const kind: SessionBackgroundTask['kind'] = message.workflow || message.toolName === 'Workflow'
+      ? 'workflow'
+      : message.toolName === 'Bash' ? 'command' : 'agent';
+    const command = typeof input.command === 'string' ? input.command : '';
+    const inputDescription = typeof input.description === 'string' ? input.description : '';
+    const title = kind === 'workflow'
+      ? message.workflow?.name || message.taskStatus?.workflowName || inputDescription || 'Workflow'
+      : kind === 'command'
+        ? inputDescription || command || 'Command'
+        : message.subagent?.description || message.taskStatus?.description || inputDescription || 'Agent';
+    const detail = kind === 'command'
+      ? (inputDescription ? command : undefined)
+      : kind === 'workflow' && message.workflow
+        ? `${message.workflow.agentCounts.completed}/${message.workflow.agentCounts.total} agents`
+        : message.subagent?.type || (typeof input.subagent_type === 'string' ? input.subagent_type : undefined);
+    const acknowledged = /running in background/i.test(resultText);
+    const status = readBackgroundTaskStatus(message)
+      ?? (message.toolResult?.isError ? 'failed' : acknowledged || !message.toolResult ? 'running' : 'completed');
+    tasks.push({
+      toolId: message.toolId,
+      taskId: readBackgroundTaskId(message),
+      kind,
+      title,
+      ...(detail ? { detail } : {}),
+      status,
+      startedAt: new Date(message.timestamp).getTime(),
+      ...(resultText ? { result: resultText } : message.taskStatus?.summary ? { result: message.taskStatus.summary } : {}),
+      ...(message.toolResult?.isError ? { isError: true } : {}),
+    });
+  }
+  return tasks.reverse();
 }

@@ -1,9 +1,9 @@
-import { Bot, Square, SquareTerminal, Workflow, X, type LucideIcon } from 'lucide-react';
+import { Bot, Check, ChevronRight, Loader2, Square, SquareTerminal, Workflow, X, type LucideIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useProcessingSessions } from '@/shared/context/SessionProtectionContext';
-import type { BackgroundTaskSummary, Project, ProjectSession, SessionActivity } from '@/shared/types';
+import type { BackgroundTaskStatus, BackgroundTaskSummary, Project, ProjectSession, SessionActivity, SessionBackgroundTask } from '@/shared/types';
 import { cn, getSessionTitle } from '@/shared/utils';
 
 type BackgroundProcessesPanelProps = {
@@ -11,6 +11,8 @@ type BackgroundProcessesPanelProps = {
   onClose: () => void;
   projects: Project[];
   activeSessionId: string | null;
+  /** The open session's background tasks, finished ones included, newest first. */
+  sessionTasks: SessionBackgroundTask[];
   sendMessage: (message: unknown) => void;
   onOpenSession: (sessionId: string) => void;
 };
@@ -22,6 +24,79 @@ const TASK_KINDS: Record<string, TaskKind> = {
   local_bash: { icon: SquareTerminal, labelKey: 'workspace.background.kindCommand', fallback: 'Command' },
   local_agent: { icon: Bot, labelKey: 'workspace.background.kindAgent', fallback: 'Agent' },
 };
+
+const SESSION_TASK_ICONS: Record<SessionBackgroundTask['kind'], LucideIcon> = {
+  command: SquareTerminal,
+  agent: Bot,
+  workflow: Workflow,
+};
+
+/** The status mark at the start of a task row, as Claude Code's task list draws it. */
+function StatusMark({ status }: { status: BackgroundTaskStatus }) {
+  if (status === 'running') return <Loader2 className="h-3.5 w-3.5 flex-shrink-0 animate-spin text-purple-500 dark:text-purple-400" aria-hidden="true" />;
+  if (status === 'completed') return <Check className="h-3.5 w-3.5 flex-shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />;
+  if (status === 'failed') return <X className="h-3.5 w-3.5 flex-shrink-0 text-red-500" aria-hidden="true" />;
+  return <Square className="h-3 w-3 flex-shrink-0 text-muted-foreground" aria-hidden="true" />;
+}
+
+/** One background task of the open session; expands to show what it reported. */
+function SessionTaskRow({ task, now, onStop }: { task: SessionBackgroundTask; now: number; onStop?: () => void }) {
+  const { t } = useTranslation();
+  // Whether the task's report is unfolded under the row.
+  const [expanded, setExpanded] = useState(false);
+  const KindIcon = SESSION_TASK_ICONS[task.kind];
+  const statusLabel = t(`workspace.background.status.${task.status}`, {
+    defaultValue: { running: 'Running', completed: 'Done', failed: 'Failed', stopped: 'Stopped' }[task.status],
+  });
+  const hasResult = Boolean(task.result);
+  return (
+    <li className="border-b border-border/50 last:border-b-0" data-task-status={task.status}>
+      <div className="flex items-center gap-2 px-2.5 py-2 text-xs">
+        <button
+          type="button"
+          onClick={() => hasResult && setExpanded((value) => !value)}
+          aria-expanded={hasResult ? expanded : undefined}
+          disabled={!hasResult}
+          className="flex min-w-0 flex-1 items-start gap-2 text-left disabled:cursor-default"
+        >
+          <span className="mt-0.5"><StatusMark status={task.status} /></span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1.5">
+              <KindIcon className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" aria-hidden="true" />
+              <span className="truncate font-medium text-foreground" title={task.title}>{task.title}</span>
+            </span>
+            {task.detail && <span className="mt-0.5 block truncate font-mono text-[11px] text-muted-foreground" title={task.detail}>{task.detail}</span>}
+            <span className="mt-0.5 block text-[11px] text-muted-foreground">
+              {statusLabel}
+              {task.status === 'running' ? ` · ${formatElapsed(task.startedAt, now)}` : ''}
+            </span>
+          </span>
+          {hasResult && <ChevronRight className={cn('mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-90')} aria-hidden="true" />}
+        </button>
+        {onStop && (
+          <button
+            type="button"
+            onClick={onStop}
+            title={t('workspace.background.stop', { defaultValue: 'Stop' })}
+            aria-label={t('workspace.background.stop', { defaultValue: 'Stop' })}
+            className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-destructive"
+          >
+            <Square className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+      {expanded && task.result && (
+        <pre className={cn(
+          'mx-2.5 mb-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/50 p-2 font-mono text-[11px] leading-relaxed',
+          task.isError ? 'text-red-600 dark:text-red-400' : 'text-foreground/90',
+        )}
+        >
+          {task.result}
+        </pre>
+      )}
+    </li>
+  );
+}
 
 /** "42s", "3m 05s", "1h 12m" — how long a process has been running. */
 function formatElapsed(startedAt: number, now: number): string {
@@ -59,16 +134,17 @@ export function countRunningProcesses(activity: ReadonlyMap<string, SessionActiv
 }
 
 /**
- * Rendered by WorkspaceMain as a right-hand drawer: every running process
- * across all sessions — replies being generated and background agents,
- * workflows and commands — grouped by session, each with its elapsed time,
- * a stop button and a jump to its session.
+ * Rendered by WorkspaceMain as a right-hand drawer, like Claude Code's task
+ * list: first every background task of the open session — commands, agents
+ * and workflows, running or finished — with its status and, unfolded, what it
+ * reported; then what other sessions are running, each with a jump to it.
  */
 export default function BackgroundProcessesPanel({
   open,
   onClose,
   projects,
   activeSessionId,
+  sessionTasks,
   sendMessage,
   onOpenSession,
 }: BackgroundProcessesPanelProps) {
@@ -78,12 +154,13 @@ export default function BackgroundProcessesPanel({
   // Ticks once a second while the drawer is open so elapsed times count up.
   const [now, setNow] = useState(() => Date.now());
 
+  const hasRunningSessionTask = sessionTasks.some((task) => task.status === 'running');
   useEffect(() => {
-    if (!open || activity.size === 0) return;
+    if (!open || (activity.size === 0 && !hasRunningSessionTask)) return;
     setNow(Date.now());
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, [open, activity.size]);
+  }, [open, activity.size, hasRunningSessionTask]);
 
   useEffect(() => {
     if (!open) return;
@@ -99,12 +176,12 @@ export default function BackgroundProcessesPanel({
 
   if (!open) return null;
 
-  // The selected session first, then the longest-running.
-  const entries = [...activity.entries()].sort(([idA, a], [idB, b]) => {
-    if (idA === activeSessionId) return -1;
-    if (idB === activeSessionId) return 1;
-    return a.startedAt - b.startedAt;
-  });
+  // The open session's work is listed by its tasks above; the rest, longest-running first.
+  const entries = [...activity.entries()]
+    .filter(([sessionId]) => sessionId !== activeSessionId)
+    .sort(([, a], [, b]) => a.startedAt - b.startedAt);
+  const hasSessionTasks = Boolean(activeSessionId) && sessionTasks.length > 0;
+  const sectionHeadingClass = 'px-1 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground';
 
   const stopTask = (sessionId: string, task: BackgroundTaskSummary) => {
     sendMessage({ type: 'chat.stop-task', sessionId, taskId: task.taskId });
@@ -112,11 +189,11 @@ export default function BackgroundProcessesPanel({
 
   return (
     <aside
-      aria-label={t('workspace.background.title', { defaultValue: 'Background processes' })}
+      aria-label={t('workspace.background.title', { defaultValue: 'Background tasks' })}
       className="absolute inset-y-0 right-0 z-40 flex w-full max-w-sm flex-col border-l border-border bg-background shadow-2xl"
     >
       <div className="flex h-11 flex-shrink-0 items-center gap-2 border-b border-border px-3">
-        <h2 className="flex-1 text-sm font-semibold">{t('workspace.background.title', { defaultValue: 'Background processes' })}</h2>
+        <h2 className="flex-1 text-sm font-semibold">{t('workspace.background.title', { defaultValue: 'Background tasks' })}</h2>
         <kbd className="hidden rounded border border-border px-1 text-[10px] text-muted-foreground sm:inline">Ctrl+Shift+J</kbd>
         <button
           type="button"
@@ -129,7 +206,27 @@ export default function BackgroundProcessesPanel({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
-        {entries.length === 0 ? (
+        {hasSessionTasks && (
+          <section className="mb-3">
+            <h3 className={sectionHeadingClass}>{t('workspace.background.thisSession', { defaultValue: 'This session' })}</h3>
+            <ul className="rounded-lg border border-border/70">
+              {sessionTasks.map((task) => (
+                <SessionTaskRow
+                  key={task.toolId}
+                  task={task}
+                  now={now}
+                  onStop={task.status === 'running' && task.taskId && activeSessionId
+                    ? () => sendMessage({ type: 'chat.stop-task', sessionId: activeSessionId, taskId: task.taskId })
+                    : undefined}
+                />
+              ))}
+            </ul>
+          </section>
+        )}
+        {entries.length > 0 && hasSessionTasks && (
+          <h3 className={sectionHeadingClass}>{t('workspace.background.otherSessions', { defaultValue: 'Other sessions' })}</h3>
+        )}
+        {entries.length === 0 && !hasSessionTasks ? (
           <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center">
             <p className="text-sm font-medium text-foreground">{t('workspace.background.emptyTitle', { defaultValue: 'Nothing is running' })}</p>
             <p className="text-xs text-muted-foreground">

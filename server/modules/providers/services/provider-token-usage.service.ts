@@ -301,9 +301,16 @@ export function summarizeClaudeTokenUsage(
 
   const parsedContextWindow = Number.parseInt(configuredContextWindow ?? '', 10);
   const configuredOrDefaultContextWindow = Number.isFinite(parsedContextWindow) ? parsedContextWindow : 160_000;
+  // Without a reported window (e.g. after a restart) a context already past
+  // the default can only be a 1M-window model; claiming 160K then would show
+  // "379K / 160K". The reported window, when there is one, always wins.
+  const usedTokens = inputTokens + outputTokens;
+  const inferredContextWindow = usedTokens > configuredOrDefaultContextWindow
+    ? Math.max(1_000_000, usedTokens)
+    : configuredOrDefaultContextWindow;
   const contextWindow = reportedContextWindow && reportedContextWindow > 0
     ? reportedContextWindow
-    : configuredOrDefaultContextWindow;
+    : inferredContextWindow;
   const cacheTokens = cacheReadTokens + cacheCreationTokens;
 
   return {

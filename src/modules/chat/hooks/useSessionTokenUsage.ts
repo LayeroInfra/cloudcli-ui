@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { api } from '@/shared/api';
 
-/** The context-window figures the header meter draws. */
+/** The context-window figures the composer's meter draws. */
 type SessionTokenUsage = {
   used: number;
   total: number | null;
@@ -19,8 +19,8 @@ const readCount = (value: unknown): number => {
 };
 
 /**
- * Fetches the selected session's context-window usage for the workspace
- * header. Refetches whenever `refreshKey` changes — the caller bumps it when
+ * Used by chat's ComposerContextMeter: fetches the session's context-window
+ * usage. Refetches whenever `refreshKey` changes — the caller bumps it when
  * the session's turn settles — so the meter moves after every reply without
  * polling. `isLoading` is true only until the first answer for a session, so
  * the meter shows a skeleton instead of a fake zero.

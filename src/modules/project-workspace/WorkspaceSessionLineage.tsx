@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next';
 
 import type { Project, ProjectSession } from '@/shared/types';
 import { useBusySessionIdSet } from '@/shared/context/SessionProtectionContext';
+import { AnchoredPopover } from '@/shared/ui';
 import { cn, getSessionTitle } from '@/shared/utils';
-import WorkspacePopover from '@/modules/project-workspace/WorkspacePopover';
 
 type WorkspaceSessionLineageProps = {
   selectedProject: Project;
@@ -72,7 +72,7 @@ export default function WorkspaceSessionLineage({ selectedProject, selectedSessi
         </span>
       ))}
       {children.length > 0 && (
-        <WorkspacePopover
+        <AnchoredPopover
           trigger={({ open, toggle }) => (
             <button
               type="button"
@@ -117,7 +117,7 @@ export default function WorkspaceSessionLineage({ selectedProject, selectedSessi
               ))}
             </div>
           )}
-        </WorkspacePopover>
+        </AnchoredPopover>
       )}
     </div>
   );

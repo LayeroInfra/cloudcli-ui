@@ -86,8 +86,6 @@ const header = (activeTab: AppTab) => (
       isMobile={false}
       onMenuClick={() => undefined}
       onOpenSession={() => undefined}
-      onShowSettings={() => undefined}
-      usageRefreshKey=""
       background={{ open: false, onToggle: () => undefined, runningCount: 0 }}
       terminal={{ open: false, onToggle: () => undefined }}
       browser={{ open: false, onToggle: () => undefined }}

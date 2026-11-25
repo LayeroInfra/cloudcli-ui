@@ -36,7 +36,7 @@ test('a fresh install gets the documented defaults', () => {
     showThinking: true,
     sendByCtrlEnter: false,
     sidebarVisible: true,
-    keepProjectsExpanded: false,
+    keepProjectsExpanded: true,
     voiceEnabled: false,
   });
 });

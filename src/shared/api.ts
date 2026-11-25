@@ -4,6 +4,7 @@ import {
   storeAuthToken,
 } from '@/shared/authToken';
 import { IS_PLATFORM } from '@/shared/utils';
+import { PROJECT_SESSIONS_PAGE_SIZE } from '@/shared/constants';
 import { readVoiceConfig, voiceConfigHeaders } from '@/shared/voiceConfig';
 
 // Headers are a plain record rather than the full `HeadersInit` union so the
@@ -219,11 +220,11 @@ export const api = {
   // config endpoint removed - no longer needed (frontend uses window.location)
   // After the projectName → projectId migration the path/query identifier is
   // the DB-assigned `projectId`; parameter names reflect that for clarity.
-  projects: () => get('/api/projects'),
+  projects: () => get(`/api/projects${query({ sessionsLimit: PROJECT_SESSIONS_PAGE_SIZE })}`),
   archivedProjects: () => get('/api/projects/archived'),
   projectSessions: (
     projectId: string,
-    { limit = 20, offset = 0 }: { limit?: number; offset?: number } = {},
+    { limit = PROJECT_SESSIONS_PAGE_SIZE, offset = 0 }: { limit?: number; offset?: number } = {},
     options: ApiRequestOptions = {},
   ) =>
     get(
@@ -458,6 +459,8 @@ export const api = {
     ) => get(sessionMessagesUrl(sessionId, pagination), options),
     sessionTokenUsage: (sessionId: string) =>
       get(`/api/providers/sessions/${encodeURIComponent(sessionId)}/token-usage`),
+    /** The claude.ai plan rate-limit windows the Claude CLI last reported (5-hour, 7-day, ...). */
+    claudeRateLimits: () => get('/api/providers/claude/rate-limits'),
     sessionActiveModel: (provider: string, sessionId: string) =>
       get(`/api/providers/${provider}/sessions/${encodeURIComponent(sessionId)}/active-model`),
     setSessionActiveModel: (provider: string, sessionId: string, model: string) =>

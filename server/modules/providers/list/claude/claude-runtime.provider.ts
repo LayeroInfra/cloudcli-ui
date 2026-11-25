@@ -39,6 +39,7 @@ import {
   notifyUserIfEnabled
 } from '@/modules/notifications/index.js';
 import { sessionHistoryCache } from '@/modules/providers/services/session-history-cache.service.js';
+import { claudeRateLimitsService } from '@/modules/providers/services/claude-rate-limits.service.js';
 import {
   getReportedClaudeContextWindow,
   rememberClaudeContextWindow
@@ -1623,6 +1624,11 @@ async function queryClaudeSDK(
     console.log('Starting async generator loop for session:', capturedSessionId || 'NEW');
     for await (const rawMessage of queryInstance) {
       const message = rawMessage as AnyRecord;
+      // Plan rate-limit readings feed the sidebar's account block; they carry
+      // nothing the chat itself shows.
+      if (message.type === 'rate_limit_event') {
+        claudeRateLimitsService.record(message.rate_limit_info);
+      }
       // Capture session ID from first message
       if (message.session_id && !capturedSessionId) {
 

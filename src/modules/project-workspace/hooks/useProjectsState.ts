@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
 
 import { api } from '@/shared/api';
+import { PROJECT_SESSIONS_PAGE_SIZE } from '@/shared/constants';
 import type { ServerEvent,
   AppTab,
   LLMProvider,
   LoadingProgress,
   Project,
-  ProjectSession,IsSessionProcessing } from '@/shared/types';
+  ProjectSession,
+  SettingsMainTab,IsSessionProcessing } from '@/shared/types';
 import { mergeProjectSelectionMetadata } from '@/modules/project-workspace/utils/projectSelectionMetadata';
 import { readSelectedProvider } from '@/shared/selectedProvider';
 
@@ -1222,7 +1224,7 @@ export function useProjectsState({
     }
 
     const response = await api.projectSessions(projectId, {
-      limit: 20,
+      limit: PROJECT_SESSIONS_PAGE_SIZE,
       offset: loadedCount,
     });
 
@@ -1281,7 +1283,8 @@ export function useProjectsState({
       isLoading: isLoadingProjects,
       loadingProgress,
       onRefresh: handleSidebarRefresh,
-      onShowSettings: () => setShowSettings(true),
+      // A tab opens settings there; without one they reopen where they were left.
+      onShowSettings: (tab?: SettingsMainTab) => (tab ? openSettings(tab) : setShowSettings(true)),
       showSettings,
       settingsInitialTab,
       onCloseSettings: () => setShowSettings(false),
@@ -1299,6 +1302,7 @@ export function useProjectsState({
       isLoadingProjects,
       isMobile,
       loadingProgress,
+      openSettings,
       projects,
       settingsInitialTab,
       selectedProject,

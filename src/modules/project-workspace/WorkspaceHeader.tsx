@@ -2,15 +2,13 @@ import { Activity, Globe, SquareTerminal, type LucideIcon } from 'lucide-react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import type { AppTab, LLMProvider, Project, ProjectSession, SettingsMainTab } from '@/shared/types';
+import type { AppTab, Project, ProjectSession } from '@/shared/types';
 import { Tooltip } from '@/shared/ui';
 import { cn } from '@/shared/utils';
 import MobileMenuButton from '@/modules/project-workspace/MobileMenuButton';
-import WorkspaceAccountStatus from '@/modules/project-workspace/WorkspaceAccountStatus';
 import WorkspaceConnectionStatus from '@/modules/project-workspace/WorkspaceConnectionStatus';
 import WorkspaceTabs from '@/modules/project-workspace/WorkspaceTabs';
 import WorkspaceTitle from '@/modules/project-workspace/WorkspaceTitle';
-import WorkspaceUsageMeter from '@/modules/project-workspace/WorkspaceUsageMeter';
 
 type PanelToggle = {
   open: boolean;
@@ -29,9 +27,6 @@ type WorkspaceHeaderProps = {
   /** Persists a new title for a session; resolves false when the backend refuses it. */
   onRenameSession: (sessionId: string, summary: string) => Promise<boolean>;
   onOpenSession: (sessionId: string) => void;
-  onShowSettings: (tab?: SettingsMainTab) => void;
-  /** Changes whenever the selected session's turn settles, so the usage meter refetches. */
-  usageRefreshKey: unknown;
   terminal: PanelToggle;
   browser: PanelToggle;
   background: PanelToggle & { runningCount: number };
@@ -73,7 +68,7 @@ function PanelButton({ icon: Icon, label, shortcut, active, onClick, badge }: Pa
 /**
  * Rendered by WorkspaceMain: one compact bar in the spirit of Claude Code —
  * the session (with its parent and forks), the view tabs, and on the right
- * what it costs and who it runs as, then the toggles for the background
+ * the toggles for the background
  * processes drawer, the terminal dock and the browser.
  */
 export default function WorkspaceHeader({
@@ -87,14 +82,11 @@ export default function WorkspaceHeader({
   onMenuClick,
   onRenameSession,
   onOpenSession,
-  onShowSettings,
-  usageRefreshKey,
   terminal,
   browser,
   background,
 }: WorkspaceHeaderProps) {
   const { t } = useTranslation();
-  const provider: LLMProvider = selectedSession?.__provider ?? 'claude';
 
   return (
     <header className="pwa-header-safe relative z-30 flex-shrink-0 border-b border-border/60 bg-background px-2 py-1.5 sm:px-3">
@@ -122,12 +114,10 @@ export default function WorkspaceHeader({
         </div>
 
         <div className="ml-auto flex flex-shrink-0 items-center gap-1">
-          <WorkspaceUsageMeter sessionId={selectedSession?.id ?? null} refreshKey={usageRefreshKey} />
-          <WorkspaceAccountStatus provider={provider} onShowSettings={onShowSettings} />
           <span className="mx-1 hidden h-5 w-px bg-border sm:block" aria-hidden="true" />
           <PanelButton
             icon={Activity}
-            label={t('workspace.background.title', { defaultValue: 'Background processes' })}
+            label={t('workspace.background.title', { defaultValue: 'Background tasks' })}
             shortcut="Ctrl+Shift+J"
             active={background.open}
             onClick={background.onToggle}

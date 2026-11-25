@@ -88,7 +88,8 @@
         "skills": "Навыки"
       },
       "insertTitle": "Вставить {{command}} в чат"
-    }
+    },
+    "voiceEnabled": "Голосовой ввод и озвучка"
   },
   "terminalShortcuts": {
     "title": "Горячие клавиши терминала",

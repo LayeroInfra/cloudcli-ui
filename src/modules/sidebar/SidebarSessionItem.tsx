@@ -1,9 +1,9 @@
 import { memo, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { Archive, Check, CheckSquare, Edit2, GitBranch, Loader2, MoreHorizontal, Square, Trash2, X } from 'lucide-react';
+import { Check, CheckSquare, Edit2, GitBranch, Loader2, Pin, Settings, Square, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { Badge, Dialog, DialogContent, DialogTitle, LLMProviderLogo, Tooltip, buttonVariants } from '@/shared/ui';
+import { Dialog, DialogContent, DialogTitle, LLMProviderLogo, Tooltip } from '@/shared/ui';
 import { cn } from '@/shared/utils';
 import type { LLMProvider, Project, ProjectSession, SessionWithProvider } from '@/shared/types';
 import { useSessionForkingProviders } from '@/shared/hooks/useProviderCapabilities';
@@ -11,7 +11,6 @@ import { PROVIDER_LABELS, createSessionViewModel, formatCompactAge } from '@/mod
 import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
 import { useProviderSessionIdCopy } from '@/modules/sidebar/hooks/useProviderSessionIdCopy';
 import SessionOptions from '@/modules/sidebar/SessionOptions';
-import SessionPinButton from '@/modules/sidebar/SessionPinButton';
 import { useSessionPins } from '@/modules/sidebar/hooks/useSessionPins';
 
 type SidebarSessionItemProps = {
@@ -40,8 +39,6 @@ type SidebarSessionItemProps = {
   isSelecting: boolean;
   /** Ticked for the pending bulk delete. Resolved by the list, which never ticks a running row. */
   isChecked: boolean;
-  /** Project fork trees use denser rows so indentation does not consume the title's space. */
-  treeRow?: boolean;
   /** Takes the owning projectId so this memoized row binds itself without the list making a closure per row. */
   onToggleSessionSelected: (projectId: string, sessionId: string) => void;
   t: TFunction;
@@ -64,12 +61,10 @@ function SidebarSessionItem({
   onSaveEditingSession,
   onProjectSelect,
   onSessionSelect,
-  onArchiveSession,
   onDeleteSession,
   onForkSession,
   isSelecting,
   isChecked,
-  treeRow = false,
   onToggleSessionSelected,
   t,
 }: SidebarSessionItemProps) {
@@ -161,27 +156,59 @@ function SidebarSessionItem({
     setMobileOptionsOpen(false);
   };
 
+  const isPinned = pins?.pinnedIds.has(session.id) ?? false;
+  // Minimal row, in the spirit of Claude Code: the title carries the row; the
+  // provider mark appears only when it is not the default Claude.
+  const providerMark = session.__provider !== 'claude' ? (
+    <LLMProviderLogo provider={session.__provider} className="h-3.5 w-3.5 flex-shrink-0 opacity-70" />
+  ) : null;
+  const statusDot = showAttentionIndicator || showBackgroundIndicator || showRecentIndicator ? (
+    <Tooltip content={indicatorLabel} position="right">
+      <span
+        role="status"
+        aria-label={indicatorLabel}
+        className={cn(
+          'block h-1.5 w-1.5 flex-shrink-0 rounded-full',
+          showAttentionIndicator
+            ? 'animate-pulse bg-amber-500'
+            : showBackgroundIndicator
+              ? 'animate-pulse bg-purple-500 dark:bg-purple-400'
+              : 'bg-green-500',
+        )}
+      />
+    </Tooltip>
+  ) : null;
+  // Desktop hides the meta while the hover actions occupy its place.
+  const rowMeta = (
+    <span
+      className={cn(
+        'ml-auto flex flex-shrink-0 items-center gap-1.5 text-[11px] tabular-nums text-muted-foreground',
+        !isCompact && !isSelecting && 'group-hover:hidden group-has-[:focus-visible]:hidden group-has-[[aria-expanded=true]]:hidden',
+        !isCompact && isEditing && 'hidden',
+      )}
+    >
+      {statusDot}
+      {isProcessing ? (
+        <Tooltip content={t('tooltips.processingSessionIndicator', 'Processing session')} position="top">
+          <span className="flex h-4 w-4 items-center justify-center">
+            <Loader2 className="h-3 w-3 animate-spin" />
+          </span>
+        </Tooltip>
+      ) : (
+        <>
+          {!isCompact && isPinned && <Pin className="h-3 w-3 fill-current opacity-60" aria-hidden="true" />}
+          {compactSessionAge && <span>{compactSessionAge}</span>}
+        </>
+      )}
+    </span>
+  );
+  const rowStateClass = cn(
+    isSelected ? 'bg-accent text-foreground' : 'text-foreground/85 hover:bg-accent/50',
+    isChecked && 'bg-primary/10',
+  );
+
   return (
     <div className="group relative">
-      {(showAttentionIndicator || showBackgroundIndicator || showRecentIndicator) && (
-        <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 transform">
-          <Tooltip content={indicatorLabel} position="right">
-            <div
-              role="status"
-              aria-label={indicatorLabel}
-              className={cn(
-                'h-2 w-2 animate-pulse rounded-full',
-                showAttentionIndicator
-                  ? 'bg-amber-500'
-                  : showBackgroundIndicator
-                    ? 'bg-purple-500 dark:bg-purple-400'
-                    : 'bg-green-500',
-              )}
-            />
-          </Tooltip>
-        </div>
-      )}
-
       {isCompact && (
       <div>
         <div
@@ -190,82 +217,35 @@ function SidebarSessionItem({
           aria-disabled={isSelecting && !isSelectable ? true : undefined}
           tabIndex={isSelecting ? 0 : undefined}
           className={cn(
-            treeRow
-              ? 'mx-0.5 my-px rounded-md border border-transparent bg-transparent px-1.5 py-1 active:scale-[0.98] transition-colors duration-150 relative'
-              : 'mx-3 my-0.5 rounded-md bg-card border p-2 active:scale-[0.98] transition-all duration-150 relative',
-            isSelected ? 'bg-primary/5 border-primary/20' : '',
-            !treeRow && (!isSelected && isProcessing
-              ? 'border-border/60 bg-muted/20'
-              : !isSelected && sessionView.isActive
-                ? 'border-green-500/30 bg-green-50/5 dark:bg-green-900/5'
-                : 'border-border/30'),
-            isChecked && 'border-primary/40 bg-primary/10',
+            'flex h-10 items-center gap-2 rounded-md pl-2 pr-0.5 text-sm transition-colors active:bg-accent/70',
+            rowStateClass,
           )}
           onClick={isSelecting ? (isSelectable ? toggleSelected : undefined) : selectMobileSession}
           onKeyDown={isSelecting ? handleSelectionKeyDown : undefined}
         >
-          <div className={cn('flex items-center', treeRow ? 'gap-1.5' : 'gap-2')}>
-            {selectionIcon}
-            <div
-              className={cn(
-                'w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0',
-                isSelected ? 'bg-primary/10' : 'bg-muted/50',
-              )}
-            >
-              <LLMProviderLogo provider={session.__provider} className="h-3 w-3" />
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <div
-                  className="min-w-0 flex-1 truncate text-sm font-normal text-foreground"
-                  title={sessionView.sessionName}
-                >
-                  {sessionView.sessionName}
-                </div>
-                {isProcessing ? (
-                  <span className="ml-auto flex-shrink-0">
-                    <Tooltip content={t('tooltips.processingSessionIndicator', 'Processing session')} position="top">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      </span>
-                    </Tooltip>
-                  </span>
-                ) : !treeRow && compactSessionAge && (
-                  <span className="ml-auto flex-shrink-0 text-[11px] text-muted-foreground">{compactSessionAge}</span>
-                )}
-              </div>
-              <div className="mt-0.5 flex items-center">
-                {sessionView.messageCount > 0 && (
-                  <Badge variant="secondary" className="px-1 py-0 text-xs">
-                    {sessionView.messageCount}
-                  </Badge>
-                )}
-              </div>
-            </div>
-
-            {!isSelecting && (
-              <>
-              <SessionPinButton sessionId={session.id} sessionName={sessionView.sessionName} t={t} />
+          {selectionIcon}
+          {providerMark}
+          <span className="min-w-0 flex-1 truncate" title={sessionView.sessionName}>
+            {sessionView.sessionName}
+          </span>
+          {rowMeta}
+          {!isSelecting && (
+            <span className="flex flex-shrink-0 items-center">
               <button
                 type="button"
                 aria-label={`Session options for ${sessionView.sessionName}`}
                 aria-haspopup="dialog"
                 aria-expanded={isMobileOptionsOpen}
-                className={cn(
-                  'ml-1 flex flex-shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted active:scale-95',
-                  treeRow ? '-mr-0.5 h-7 w-7 rounded-md' : 'h-8 w-8 rounded-lg',
-                )}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted active:scale-95"
                 onClick={(event) => {
                   event.stopPropagation();
                   setMobileOptionsOpen(true);
                 }}
               >
-                <MoreHorizontal className="h-4 w-4" />
+                <Settings className="h-4 w-4" />
               </button>
-              </>
-            )}
-          </div>
+            </span>
+          )}
         </div>
 
         <Dialog open={isMobileOptionsOpen} onOpenChange={setMobileOptionsOpen}>
@@ -390,17 +370,22 @@ function SidebarSessionItem({
 
                 {!isProcessing && (
                   <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMobileOptionsOpen(false);
-                        onArchiveSession(session.id);
-                      }}
-                      className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-border bg-muted/35 px-4 py-3 text-left text-foreground transition-colors active:bg-muted"
-                    >
-                      <Archive className="h-5 w-5 flex-shrink-0" />
-                      <span className="text-sm font-medium">Archive session</span>
-                    </button>
+                    {pins && (
+                      <button
+                        type="button"
+                        disabled={!pins.ready || pins.pendingSessionId !== null}
+                        onClick={() => {
+                          setMobileOptionsOpen(false);
+                          void pins.setPinned(session.id, !isPinned);
+                        }}
+                        className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-border bg-muted/35 px-4 py-3 text-left text-foreground transition-colors active:bg-muted disabled:opacity-50"
+                      >
+                        <Pin className="h-5 w-5 flex-shrink-0" />
+                        <span className="text-sm font-medium">
+                          {isPinned ? t('pinned.unpin', 'Unpin session') : t('pinned.pin', 'Pin session')}
+                        </span>
+                      </button>
+                    )}
 
                     <button
                       type="button"
@@ -440,19 +425,11 @@ function SidebarSessionItem({
           aria-checked={isSelecting ? isChecked : undefined}
           aria-disabled={isSelecting && !isSelectable ? true : undefined}
           className={cn(
-            buttonVariants({ variant: 'ghost' }),
-            treeRow
-              ? 'h-auto w-full justify-start rounded-md border border-transparent bg-transparent px-1.5 py-1 text-left font-normal transition-colors duration-150'
-              : 'h-auto w-full justify-start rounded-md border bg-card p-2 text-left font-normal transition-all duration-150',
-            isSelecting ? 'pr-2' : pins ? 'pr-[4.5rem]' : 'pr-11',
-            isSelected ? 'border-primary/20 bg-primary/5' : 'border-border/30',
-            !treeRow && (!isSelected && isProcessing
-              ? 'border-border/60 bg-muted/20 hover:bg-muted/25'
-              : !isSelected && sessionView.isActive
-                ? 'border-green-500/30 bg-green-50/5 hover:bg-green-50/10 dark:bg-green-900/5 dark:hover:bg-green-900/10'
-                : 'hover:bg-accent/50'),
-            treeRow && !isSelected && 'hover:bg-accent/50',
-            isChecked && 'border-primary/40 bg-primary/10',
+            'flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+            // The hover actions take the meta's place; reserve their width only then.
+            !isSelecting && (pins ? 'group-hover:pr-16 group-has-[:focus-visible]:pr-16' : 'group-hover:pr-9 group-has-[:focus-visible]:pr-9'),
+            !isSelecting && isEditing && 'pr-52',
+            rowStateClass,
           )}
           // Left-click keeps in-app navigation; Ctrl/Cmd/middle-click and the
           // native right-click menu use the href to open a new tab/window.
@@ -472,64 +449,29 @@ function SidebarSessionItem({
           }}
           onKeyDown={isSelecting ? handleSelectionKeyDown : undefined}
         >
-          <div className={cn('flex w-full min-w-0 items-center', treeRow ? 'gap-1.5' : 'gap-2')}>
-            {selectionIcon}
-            <div
-              className={cn(
-                'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md',
-                isSelected ? 'bg-primary/10' : 'bg-muted/50',
-              )}
-            >
-              <LLMProviderLogo provider={session.__provider} className="h-3 w-3" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <div
-                  className="min-w-0 flex-1 truncate text-sm font-normal text-foreground"
-                  title={sessionView.sessionName}
-                  onDoubleClick={(event) => {
-                    if (isSelecting || isEditing || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                    event.preventDefault();
-                    event.stopPropagation();
-                    onStartEditingSession(project.projectId, session.id, sessionView.sessionName);
-                  }}
-                >
-                  {sessionView.sessionName}
-                </div>
-                {isProcessing ? (
-                  <span
-                    className={cn(
-                      'ml-auto flex-shrink-0 transition-opacity duration-200',
-                      isEditing ? 'opacity-0' : !isSelecting && 'group-hover:opacity-0',
-                    )}
-                  >
-                    <Tooltip content={t('tooltips.processingSessionIndicator', 'Processing session')} position="top">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      </span>
-                    </Tooltip>
-                  </span>
-                ) : compactSessionAge && (
-                  <span
-                    className={cn(
-                      'ml-auto flex-shrink-0 text-[11px] text-muted-foreground transition-opacity duration-200',
-                      isEditing ? 'opacity-0' : !isSelecting && 'group-hover:opacity-0',
-                    )}
-                  >
-                    {compactSessionAge}
-                  </span>
-                )}
-              </div>
-              <div className="mt-0.5 flex items-center">
-                {sessionView.messageCount > 0 && <Badge variant="secondary" className="px-1 py-0 text-xs">{sessionView.messageCount}</Badge>}
-              </div>
-            </div>
-          </div>
+          {selectionIcon}
+          {providerMark}
+          <span
+            className="min-w-0 flex-1 truncate"
+            title={sessionView.sessionName}
+            onDoubleClick={(event) => {
+              if (isSelecting || isEditing || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              event.stopPropagation();
+              onStartEditingSession(project.projectId, session.id, sessionView.sessionName);
+            }}
+          >
+            {sessionView.sessionName}
+          </span>
+          {rowMeta}
         </a>
 
         {!isSelecting && (
           <SessionOptions
-            className="absolute right-2 top-1/2 -translate-y-1/2 transform transition-all duration-200"
+            className={cn(
+              'absolute right-1 top-1/2 -translate-y-1/2 transition-opacity',
+              isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-has-[:focus-visible]:opacity-100 has-[[aria-expanded=true]]:opacity-100',
+            )}
             sessionId={session.id}
             sessionName={sessionView.sessionName}
             provider={session.__provider}
@@ -541,7 +483,6 @@ function SidebarSessionItem({
             onStartEditingSession={onStartEditingSession}
             onCancelEditingSession={onCancelEditingSession}
             onSaveEditingSession={onSaveEditingSession}
-            onArchiveSession={onArchiveSession}
             onDeleteSession={onDeleteSession}
             onFork={onForkSession ? () => onForkSession(session) : undefined}
             t={t}

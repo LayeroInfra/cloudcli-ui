@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CheckSquare, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { ChevronRight, Trash2 } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button } from '@/shared/ui';
@@ -39,7 +39,6 @@ type SidebarProjectSessionsProps = {
   onDeleteSession: (sessionId: string, sessionTitle: string) => void;
   onForkSession?: (session: SessionWithProvider) => void;
   onLoadMoreSessions: (projectId: string) => void;
-  onNewSession: (project: Project) => void;
   /** The sessions ticked here, or null when this project's list is not in selection mode. */
   selectedSessionIds: ReadonlySet<string> | null;
   onSetSessionSelection: (selection: SidebarSessionSelection) => void;
@@ -93,7 +92,6 @@ export default function SidebarProjectSessions({
   onDeleteSession,
   onForkSession,
   onLoadMoreSessions,
-  onNewSession,
   selectedSessionIds,
   onSetSessionSelection,
   onToggleSessionSelected,
@@ -200,88 +198,46 @@ export default function SidebarProjectSessions({
       : t('sessions.selectAll');
 
   return (
-    <div className="ml-1.5 space-y-1 border-l border-border/70 pl-1.5">
-      {isCompact ? (
-        <div className="px-3 pb-1 pt-1">
-          <button
-            className="flex h-8 w-full items-center justify-center gap-2 rounded-md bg-primary text-xs font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-[0.98]"
-            onClick={() => {
-              onProjectSelect(project);
-              onNewSession(project);
-            }}
+    // Indented past the project name, so the sessions read as its children.
+    <div className={cn('space-y-px pb-1', isCompact ? 'pl-8 pr-3' : 'pl-7')}>
+      {isSelecting && (
+        <div className="space-y-1 pb-1">
+          {/* Wraps rather than clips: at the narrowest sidebar width a long
+              translated "Select all loaded" leaves no room for Cancel. */}
+          <div className="flex flex-wrap items-center justify-between gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() =>
+                onSetSessionSelection({
+                  projectId: project.projectId,
+                  sessionIds: new Set(allLoadedSelected ? [] : selectableSessionIds),
+                })
+              }
+              disabled={selectableSessionIds.length === 0}
+            >
+              {selectAllLabel}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+              onClick={onCancelSessionSelection}
+            >
+              {t('actions.cancel')}
+            </Button>
+          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="h-8 w-full justify-center gap-2 bg-red-600 text-xs font-medium text-white hover:bg-red-700"
+            onClick={() => onDeleteSelectedSessions(effectiveSelectedIds)}
+            disabled={effectiveSelectedIds.length === 0}
           >
-            <Plus className="h-3 w-3" />
-            {t('sessions.newSession')}
-          </button>
-        </div>
-      ) : (
-        <Button
-          variant="default"
-          size="sm"
-          className="flex h-8 w-full justify-start gap-2 bg-primary text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          onClick={() => onNewSession(project)}
-        >
-          <Plus className="h-3 w-3" />
-          {t('sessions.newSession')}
-        </Button>
-      )}
-
-      {(isSelecting || (initialSessionsLoaded && selectableSessionIds.length > 0)) && (
-        <div className={cn('space-y-1', isCompact && 'px-3')}>
-          {isSelecting ? (
-            <>
-              {/* Wraps rather than clips: at the narrowest sidebar width a long
-                  translated "Select all loaded" leaves no room for Cancel. */}
-              <div className="flex flex-wrap items-center justify-between gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() =>
-                    onSetSessionSelection({
-                      projectId: project.projectId,
-                      sessionIds: new Set(allLoadedSelected ? [] : selectableSessionIds),
-                    })
-                  }
-                  disabled={selectableSessionIds.length === 0}
-                >
-                  {selectAllLabel}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={onCancelSessionSelection}
-                >
-                  {t('actions.cancel')}
-                </Button>
-              </div>
-              <Button
-                variant="destructive"
-                size="sm"
-                className="h-8 w-full justify-center gap-2 bg-red-600 text-xs font-medium text-white hover:bg-red-700"
-                onClick={() => onDeleteSelectedSessions(effectiveSelectedIds)}
-                disabled={effectiveSelectedIds.length === 0}
-              >
-                <Trash2 className="h-3 w-3" />
-                {t('sessions.deleteSelected', { count: effectiveSelectedIds.length })}
-              </Button>
-            </>
-          ) : (
-            <div className="flex justify-end">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() =>
-                  onSetSessionSelection({ projectId: project.projectId, sessionIds: new Set() })
-                }
-              >
-                <CheckSquare className="h-3 w-3" />
-                {t('sessions.select')}
-              </Button>
-            </div>
-          )}
+            <Trash2 className="h-3 w-3" />
+            {t('sessions.deleteSelected', { count: effectiveSelectedIds.length })}
+          </Button>
         </div>
       )}
 
@@ -295,7 +251,7 @@ export default function SidebarProjectSessions({
         </div>
       ) : (
         <>
-          <div className={cn(!hasForks && 'space-y-1')} data-testid="project-session-tree">
+          <div className="space-y-px" data-testid="project-session-tree">
             {visibleRows.map(({ session, parentId, depth, hasChildren, isLastSibling, continuationDepths }) => (
               <div
                 key={session.id}
@@ -303,6 +259,7 @@ export default function SidebarProjectSessions({
                 data-parent-session-id={parentId ?? undefined}
                 data-fork-depth={depth}
                 data-fork-branch={hasChildren || undefined}
+                data-pinned={pins?.pinnedIds.has(session.id) || undefined}
                 className="relative flex min-w-0 items-stretch"
                 style={depth > 0 ? { paddingLeft: `${Math.min(depth, MAX_FORK_INDENT_DEPTH) * FORK_INDENT_PX}px` } : undefined}
               >
@@ -377,7 +334,6 @@ export default function SidebarProjectSessions({
                     isSelecting={isSelecting}
                     isChecked={checkedSessionIds.has(session.id)}
                     onToggleSessionSelected={onToggleSessionSelected}
-                    treeRow={hasForks}
                     t={t}
                   />
                 </div>
@@ -389,7 +345,7 @@ export default function SidebarProjectSessions({
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-full justify-center text-xs text-muted-foreground hover:text-foreground"
+              className="h-8 w-full justify-start px-2 text-xs font-normal text-muted-foreground hover:text-foreground"
               onClick={() => onLoadMoreSessions(project.projectId)}
               disabled={isLoadingMoreSessions}
             >

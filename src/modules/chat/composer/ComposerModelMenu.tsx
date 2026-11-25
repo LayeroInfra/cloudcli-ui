@@ -87,7 +87,7 @@ function ComposerModelMenu({
           updateAnchor();
           setIsOpen((current) => !current);
         }}
-        className="flex h-8 max-w-20 shrink-0 items-center gap-1 rounded-lg border border-border/60 bg-muted/40 px-2 text-xs font-medium text-foreground transition-colors hover:bg-muted sm:max-w-56"
+        className="flex h-8 max-w-28 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground sm:max-w-56"
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-label={ariaLabel}
@@ -95,8 +95,9 @@ function ComposerModelMenu({
       >
         <span className="truncate">{triggerLabel}</span>
         {hasModelSection && hasEffortSection && effort !== DEFAULT_EFFORT_VALUE && (
-          <span className="hidden shrink-0 capitalize text-muted-foreground sm:inline">· {effortLabel}</span>
+          <span className="hidden shrink-0 capitalize opacity-70 sm:inline">· {effortLabel}</span>
         )}
+        <ChevronDown className="h-3 w-3 shrink-0 opacity-60" aria-hidden="true" />
       </button>
 
       {isOpen && anchor && createPortal(

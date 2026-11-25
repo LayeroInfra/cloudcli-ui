@@ -1975,6 +1975,45 @@ test('synchronizeFile uses custom-title from JSONL when no DB custom_name and no
   }
 });
 
+test('synchronize links a CLI fork to its parent from the transcript forkedFrom stamp', { concurrency: false }, async () => {
+  const tmp = await mkdtemp(path.join(os.tmpdir(), 'claude-sync-fork-'));
+  const projectDir = path.join(tmp, '.claude', 'projects', '-work');
+  await mkdir(projectDir, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tmp);
+  const row = (sessionId: string, extra: Record<string, unknown> = {}) => JSON.stringify({
+    type: 'user', sessionId, cwd: '/work', uuid: `${sessionId}-u`, parentUuid: null,
+    message: { role: 'user', content: 'hi' }, ...extra,
+  });
+
+  try {
+    await writeFile(path.join(tmp, '.claude', 'history.jsonl'), '', 'utf8');
+    // The fork is written first so a scan in file order reaches it before its parent.
+    await writeFile(path.join(projectDir, 'child.jsonl'), [
+      row('child', { forkedFrom: { sessionId: 'parent', messageUuid: 'parent-u' } }),
+      row('child'),
+    ].join('\n') + '\n', 'utf8');
+    await writeFile(path.join(projectDir, 'parent.jsonl'), row('parent') + '\n', 'utf8');
+    await writeFile(path.join(projectDir, 'plain.jsonl'), row('plain') + '\n', 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      const synchronizer = new ClaudeSessionSynchronizer();
+      assert.equal(await synchronizer.synchronize(), 3);
+
+      assert.equal(sessionsDb.getSessionById('child')?.forked_from_session_id, 'parent');
+      assert.equal(sessionsDb.getSessionById('parent')?.forked_from_session_id, null);
+      assert.equal(sessionsDb.getSessionById('plain')?.forked_from_session_id, null);
+      assert.deepEqual(sessionsDb.getForkAncestors('child').map((ancestor) => ancestor.id), ['parent']);
+
+      // The watcher path links too, and re-indexing keeps the link.
+      await synchronizer.synchronizeFile(path.join(projectDir, 'child.jsonl'));
+      assert.equal(sessionsDb.getSessionById('child')?.forked_from_session_id, 'parent');
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
 test('synchronizeFile falls back to history.jsonl display when JSONL has no title events', { concurrency: false }, async () => {
   const tmp = await mkdtemp(path.join(os.tmpdir(), 'claude-sync-fallback-'));
   const workspacePath = path.join(tmp, 'workspace');

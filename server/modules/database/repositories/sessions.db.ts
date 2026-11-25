@@ -83,7 +83,12 @@ function normalizeProjectPathForProvider(provider: string, projectPath: string):
 }
 
 export const sessionsDb = {
-  /** Links an externally started CLI fork once both native IDs are known. */
+  /**
+   * Links a Claude fork made outside the app's fork route once both native IDs
+   * are known. Used by the CLI liveness probe (a live `--fork-session` process)
+   * and the Claude session synchronizer (a transcript's `forkedFrom` stamp).
+   * Never overwrites an existing link.
+   */
   linkExternalFork(childId: string, parentId: string): boolean {
     if (childId === parentId) return false;
     const parent = this.getSessionByProviderSessionId(parentId);

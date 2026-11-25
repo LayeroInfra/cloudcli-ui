@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Archive, Check, Edit2, GitBranch, MoreHorizontal, Trash2, X } from 'lucide-react';
+import { Check, Edit2, GitBranch, Pin, Settings, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { ActionMenu } from '@/shared/ui';
@@ -8,7 +8,7 @@ import type { LLMProvider } from '@/shared/types';
 import { useSessionForkingProviders } from '@/shared/hooks/useProviderCapabilities';
 import { useProviderSessionIdCopy } from '@/modules/sidebar/hooks/useProviderSessionIdCopy';
 import { PROVIDER_LABELS } from '@/modules/sidebar/utils/sidebarProjectFormatting';
-import SessionPinButton from '@/modules/sidebar/SessionPinButton';
+import { useSessionPins } from '@/modules/sidebar/hooks/useSessionPins';
 
 type SessionOptionsProps = {
   sessionId: string;
@@ -27,7 +27,6 @@ type SessionOptionsProps = {
   onStartEditingSession: (projectId: string, sessionId: string, initialName: string) => void;
   onCancelEditingSession: () => void;
   onSaveEditingSession: (projectId: string, sessionId: string, summary: string, provider: LLMProvider) => void;
-  onArchiveSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string, sessionTitle: string) => void;
   /** Bound by the caller, which owns the session object the fork needs. */
   onFork?: () => void;
@@ -59,7 +58,6 @@ export default function SessionOptions({
   onStartEditingSession,
   onCancelEditingSession,
   onSaveEditingSession,
-  onArchiveSession,
   onDeleteSession,
   onFork,
   canDelete = true,
@@ -67,6 +65,8 @@ export default function SessionOptions({
   t,
 }: SessionOptionsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const pins = useSessionPins();
+  const isPinned = Boolean(pins?.pinnedIds.has(sessionId));
   const showRename = isEditing;
   const providerLabel = PROVIDER_LABELS[provider];
   const { copyState, copyLabel, setOptionsOpen, handleCopyAction, isCopyPending, CopyStateIcon } =
@@ -146,11 +146,10 @@ export default function SessionOptions({
         </>
       ) : (
         <>
-        <SessionPinButton sessionId={sessionId} sessionName={sessionName} t={t} />
         <ActionMenu
-          label="Session options"
-          ariaLabel={`Session options for ${sessionName}`}
-          icon={MoreHorizontal}
+          label={t('sessions.options', 'Session options')}
+          ariaLabel={`${t('sessions.options', 'Session options')}: ${sessionName}`}
+          icon={Settings}
           iconOnly
           portal
           variant="ghost"
@@ -163,13 +162,13 @@ export default function SessionOptions({
               <p className="truncate text-xs font-medium text-foreground" title={sessionName}>
                 {sessionName}
               </p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">{providerLabel} session</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">{providerLabel}</p>
             </div>
           )}
           items={[
             ...(projectId !== null ? [{
               key: 'rename',
-              label: 'Rename session',
+              label: t('sessions.rename', 'Rename session'),
               icon: Edit2,
               onSelect: () => {
                 onStartEditingSession(projectId, sessionId, sessionName);
@@ -184,22 +183,26 @@ export default function SessionOptions({
               closeOnSelect: false,
               onSelect: handleCopyAction,
             },
+            ...(pins ? [{
+              key: 'pin',
+              label: isPinned ? t('pinned.unpin', 'Unpin session') : t('pinned.pin', 'Pin session'),
+              description: t('pinned.withinProject', 'Keeps it at the top of its project.'),
+              icon: Pin,
+              disabled: !pins.ready || pins.pendingSessionId !== null,
+              loading: pins.pendingSessionId === sessionId,
+              onSelect: () => void pins.setPinned(sessionId, !isPinned),
+            }] : []),
             ...(canFork && onFork ? [{
               key: 'fork',
-              label: 'Fork session',
-              description: 'Continue from a copy, leaving this one untouched.',
+              label: t('sessions.fork', 'Fork session'),
+              description: t('sessions.forkDescription', 'Continue from a copy, leaving this one untouched.'),
               icon: GitBranch,
               onSelect: onFork,
             }] : []),
             ...(canDelete && !isProcessing ? [{
-              key: 'archive',
-              label: 'Archive session',
-              icon: Archive,
-              showDividerBefore: true,
-              onSelect: () => onArchiveSession(sessionId),
-            }, {
               key: 'delete',
-              label: 'Delete session',
+              label: t('sessions.delete', 'Delete session'),
+              showDividerBefore: true,
               icon: Trash2,
               isDanger: true,
               onSelect: () => onDeleteSession(sessionId, sessionName),

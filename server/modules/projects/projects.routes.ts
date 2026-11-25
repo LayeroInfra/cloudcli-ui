@@ -87,7 +87,7 @@ router.get(
   '/:projectId/sessions',
   asyncHandler(async (req, res) => {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
-    const limit = parseNonNegativeIntQuery(req.query.limit, 'limit', 20);
+    const limit = parseNonNegativeIntQuery(req.query.limit, 'limit', 15);
     const offset = parseNonNegativeIntQuery(req.query.offset, 'offset', 0);
     const sessionsPage = await getProjectSessionsPage(projectId, { limit, offset });
     res.json(sessionsPage);
