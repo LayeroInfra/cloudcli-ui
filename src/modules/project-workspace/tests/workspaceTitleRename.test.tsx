@@ -22,6 +22,8 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
+vi.mock('@/modules/project-workspace/WorkspaceSessionLineage', () => ({ default: () => null }));
+
 vi.mock('@/modules/plugins', () => ({
   usePlugins: () => ({ plugins: [] }),
 }));

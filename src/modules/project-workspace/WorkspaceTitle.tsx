@@ -92,11 +92,6 @@ export default function WorkspaceTitle({
       <div className="min-w-0 flex-1">
         {activeTab === 'chat' && selectedSession ? (
           <div className="min-w-0">
-            <WorkspaceSessionLineage
-              selectedProject={selectedProject}
-              selectedSession={selectedSession}
-              onOpenSession={onOpenSession}
-            />
             {isRenaming ? (
               <input
                 ref={renameInputRef}
