@@ -28,6 +28,7 @@ import {
     validateApiKey,
 } from './modules/auth/index.js';
 import { taskmasterRoutes } from './modules/taskmaster/index.js';
+import { workspaceBuildsRoutes } from './modules/workspace-builds/index.js';
 import { commandsRoutes } from './modules/commands/index.js';
 import { settingsRoutes } from './modules/settings/index.js';
 import { createSystemModule } from './modules/system/index.js';
@@ -209,6 +210,8 @@ app.use('/api/browser-use', authenticateToken, parseAuthenticatedBody, browserUs
 // Unified provider MCP routes (protected)
 app.use('/api/providers', authenticateToken, parseAuthenticatedBody, providerRoutes);
 app.use('/api/scheduled-messages', authenticateToken, parseAuthenticatedBody, scheduledMessagesRoutes);
+// The signed-in user's own Woodpecker builds; Woodpecker itself stays on loopback.
+app.use('/api/workspace/builds', authenticateToken, parseAuthenticatedBody, workspaceBuildsRoutes);
 
 // Agent API Routes (uses API key authentication)
 app.use('/api/agent', parsePublicBody, agentRoutes);

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 
 /** The docks and drawers the workspace can open beside the active tab. */
-type WorkspacePanelId = 'terminal' | 'browser' | 'background';
+type WorkspacePanelId = 'terminal' | 'browser' | 'background' | 'builds';
 
 type WorkspacePanelsState = Record<WorkspacePanelId, boolean>;
 
 const STORAGE_KEY = 'workspace-panels-open';
 
-const CLOSED_PANELS: WorkspacePanelsState = { terminal: false, browser: false, background: false };
+const CLOSED_PANELS: WorkspacePanelsState = { terminal: false, browser: false, background: false, builds: false };
 
 // Remembered per browser so a reload keeps the layout the person left. Storage
 // can throw in private windows; the workspace then simply starts closed.
@@ -21,15 +21,26 @@ function readSavedPanels(): WorkspacePanelsState {
       browser: parsed.browser === true,
       // The background drawer is an overlay; reopening it on load would hide the chat.
       background: false,
+      builds: false,
     };
   } catch {
     return CLOSED_PANELS;
   }
 }
 
+/** The right-hand drawers overlay the same space, so opening one closes the other. */
+const DRAWERS: WorkspacePanelId[] = ['background', 'builds'];
+
+const withDrawerClosed = (state: WorkspacePanelsState, opened: WorkspacePanelId): WorkspacePanelsState => {
+  if (!DRAWERS.includes(opened) || !state[opened]) return state;
+  const next = { ...state };
+  for (const drawer of DRAWERS) if (drawer !== opened) next[drawer] = false;
+  return next;
+};
+
 /**
  * Open/closed state of the workspace's terminal dock, browser panel and
- * background-processes drawer, plus their keyboard shortcuts:
+ * background-tasks and builds drawers, plus their keyboard shortcuts:
  * Ctrl+` (terminal), Ctrl+Shift+B (browser), Ctrl+Shift+J (background).
  */
 export function useWorkspacePanels() {
@@ -45,11 +56,11 @@ export function useWorkspacePanels() {
   }, [openPanels]);
 
   const togglePanel = useCallback((panel: WorkspacePanelId) => {
-    setOpenPanels((previous) => ({ ...previous, [panel]: !previous[panel] }));
+    setOpenPanels((previous) => withDrawerClosed({ ...previous, [panel]: !previous[panel] }, panel));
   }, []);
 
   const setPanelOpen = useCallback((panel: WorkspacePanelId, open: boolean) => {
-    setOpenPanels((previous) => (previous[panel] === open ? previous : { ...previous, [panel]: open }));
+    setOpenPanels((previous) => (previous[panel] === open ? previous : withDrawerClosed({ ...previous, [panel]: open }, panel)));
   }, []);
 
   useEffect(() => {

@@ -1445,6 +1445,40 @@ export type ProjectWorkspaceShellProps = RealtimeProps & {
   navigate: NavigateFunction;
 };
 
+/**
+ * One run of the CloudUI checks pipeline, as `/api/workspace/builds` returns
+ * it to its owner and the workspace builds drawer lists it. `status` is
+ * Woodpecker's word (`pending`, `running`, `success`, `failure`, `killed`,
+ * `error`, ...); timestamps are ISO strings, null until reached.
+ */
+export type WorkspaceBuild = {
+  number: number;
+  status: string;
+  branch: string;
+  event: string;
+  message: string;
+  createdAt: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+};
+
+/** One step of a workspace build (e.g. `session-tests`) with its state and exit code once known. */
+export type WorkspaceBuildStep = {
+  id: number;
+  name: string;
+  state: string;
+  exitCode: number | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+};
+
+/** A workspace build with its steps and the tail of one step's log (the failed step's, when one failed). */
+export type WorkspaceBuildDetail = WorkspaceBuild & {
+  steps: WorkspaceBuildStep[];
+  logStepId: number | null;
+  logTail: string[];
+};
+
 // ---------------------------
 
 //----------------- PROVIDER AUTHENTICATION ------------

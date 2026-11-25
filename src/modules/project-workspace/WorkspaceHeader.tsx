@@ -1,4 +1,4 @@
-import { Activity, Globe, SquareTerminal, type LucideIcon } from 'lucide-react';
+import { Activity, Globe, Hammer, SquareTerminal, type LucideIcon } from 'lucide-react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -30,12 +30,14 @@ type WorkspaceHeaderProps = {
   terminal: PanelToggle;
   browser: PanelToggle;
   background: PanelToggle & { runningCount: number };
+  /** The user's Woodpecker builds drawer; the badge counts queued and running builds. */
+  builds: PanelToggle & { activeCount: number };
 };
 
 type PanelButtonProps = {
   icon: LucideIcon;
   label: string;
-  shortcut: string;
+  shortcut?: string;
   active: boolean;
   onClick: () => void;
   badge?: number;
@@ -43,7 +45,7 @@ type PanelButtonProps = {
 
 function PanelButton({ icon: Icon, label, shortcut, active, onClick, badge }: PanelButtonProps) {
   return (
-    <Tooltip content={`${label} · ${shortcut}`} position="bottom">
+    <Tooltip content={shortcut ? `${label} · ${shortcut}` : label} position="bottom">
       <button
         type="button"
         onClick={onClick}
@@ -85,6 +87,7 @@ export default function WorkspaceHeader({
   terminal,
   browser,
   background,
+  builds,
 }: WorkspaceHeaderProps) {
   const { t } = useTranslation();
 
@@ -122,6 +125,13 @@ export default function WorkspaceHeader({
             active={background.open}
             onClick={background.onToggle}
             badge={background.runningCount}
+          />
+          <PanelButton
+            icon={Hammer}
+            label={t('workspace.builds.title', { defaultValue: 'Builds' })}
+            active={builds.open}
+            onClick={builds.onToggle}
+            badge={builds.activeCount}
           />
           <PanelButton
             icon={SquareTerminal}

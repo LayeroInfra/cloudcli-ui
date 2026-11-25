@@ -87,6 +87,7 @@ const header = (activeTab: AppTab) => (
       onMenuClick={() => undefined}
       onOpenSession={() => undefined}
       background={{ open: false, onToggle: () => undefined, runningCount: 0 }}
+      builds={{ open: false, onToggle: () => undefined, activeCount: 0 }}
       terminal={{ open: false, onToggle: () => undefined }}
       browser={{ open: false, onToggle: () => undefined }}
       onRenameSession={async () => true}

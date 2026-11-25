@@ -302,6 +302,12 @@ export const api = {
     get(`/api/providers/sessions/${encodeURIComponent(sessionId)}/workflows/${encodeURIComponent(runId)}/agents/${encodeURIComponent(agentId)}`),
 
   // Scheduled messages: send a message to a session at a future time.
+  /** The signed-in user's own Woodpecker builds; the server scopes every call to the session user. */
+  workspaceBuilds: {
+    list: (options: ApiRequestOptions = {}) => get('/api/workspace/builds', options),
+    get: (number: number, options: ApiRequestOptions = {}) => get(`/api/workspace/builds/${number}`, options),
+    trigger: () => post('/api/workspace/builds', {}),
+  },
   scheduledMessages: {
     list: (sessionId?: string) =>
       get(`/api/scheduled-messages${sessionId ? query({ sessionId }) : ''}`),

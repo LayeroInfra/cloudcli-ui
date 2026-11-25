@@ -16,6 +16,8 @@ import { useProcessingSessions } from '@/shared/context/SessionProtectionContext
 import BackgroundProcessesPanel, { countRunningProcesses } from '@/modules/project-workspace/BackgroundProcessesPanel';
 import TerminalDock from '@/modules/project-workspace/TerminalDock';
 import { useWorkspacePanels } from '@/modules/project-workspace/hooks/useWorkspacePanels';
+import { useWorkspaceBuilds } from '@/modules/project-workspace/hooks/useWorkspaceBuilds';
+import WorkspaceBuildsPanel from '@/modules/project-workspace/WorkspaceBuildsPanel';
 import WorkspaceHeader from '@/modules/project-workspace/WorkspaceHeader';
 import WorkspaceStateView from '@/modules/project-workspace/WorkspaceStateView';
 import WorkspaceErrorBoundary from '@/modules/project-workspace/WorkspaceErrorBoundary';
@@ -91,6 +93,9 @@ function WorkspaceMain({
   }, [onNavigateToSession, setActiveTab]);
 
   const closeBackgroundPanel = useCallback(() => setPanelOpen('background', false), [setPanelOpen]);
+  const closeBuildsPanel = useCallback(() => setPanelOpen('builds', false), [setPanelOpen]);
+  // The signed-in user's Woodpecker builds, for the builds drawer and its header badge.
+  const workspaceBuilds = useWorkspaceBuilds(openPanels.builds);
   const closeTerminal = useCallback(() => setPanelOpen('terminal', false), [setPanelOpen]);
   const setBrowserOpen = useCallback((open: boolean) => setPanelOpen('browser', open), [setPanelOpen]);
 
@@ -193,6 +198,7 @@ function WorkspaceMain({
         background={{ open: openPanels.background, onToggle: () => togglePanel('background'), runningCount: runningProcessCount }}
         terminal={{ open: openPanels.terminal, onToggle: () => togglePanel('terminal') }}
         browser={{ open: openPanels.browser, onToggle: () => togglePanel('browser') }}
+        builds={{ open: openPanels.builds, onToggle: () => togglePanel('builds'), activeCount: workspaceBuilds.activeCount }}
       />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -289,6 +295,17 @@ function WorkspaceMain({
 
         {!isMobile && <SitePreviewPanel open={openPanels.browser} onOpenChange={setBrowserOpen} />}
       </div>
+
+      <WorkspaceBuildsPanel
+        open={openPanels.builds}
+        onClose={closeBuildsPanel}
+        builds={workspaceBuilds.builds}
+        error={workspaceBuilds.error}
+        isLoading={workspaceBuilds.isLoading}
+        isTriggering={workspaceBuilds.isTriggering}
+        onTrigger={() => void workspaceBuilds.trigger()}
+        onRefresh={() => void workspaceBuilds.refresh()}
+      />
 
       <BackgroundProcessesPanel
         open={openPanels.background}
