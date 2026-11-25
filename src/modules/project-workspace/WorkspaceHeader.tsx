@@ -1,13 +1,11 @@
-import { Activity, Globe, Hammer, SquareTerminal, type LucideIcon } from 'lucide-react';
-import type { Dispatch, SetStateAction } from 'react';
+import { Activity, FolderTree, Globe, Hammer, SquareTerminal, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import type { AppTab, Project, ProjectSession } from '@/shared/types';
+import type { Project, ProjectSession } from '@/shared/types';
 import { Tooltip } from '@/shared/ui';
 import { cn } from '@/shared/utils';
 import MobileMenuButton from '@/modules/project-workspace/MobileMenuButton';
 import WorkspaceConnectionStatus from '@/modules/project-workspace/WorkspaceConnectionStatus';
-import WorkspaceTabs from '@/modules/project-workspace/WorkspaceTabs';
 import WorkspaceTitle from '@/modules/project-workspace/WorkspaceTitle';
 
 type PanelToggle = {
@@ -16,17 +14,15 @@ type PanelToggle = {
 };
 
 type WorkspaceHeaderProps = {
-  activeTab: AppTab;
-  setActiveTab: Dispatch<SetStateAction<AppTab>>;
   selectedProject: Project;
   selectedSession: ProjectSession | null;
-  shouldShowTasksTab: boolean;
-  shouldShowBrowserTab: boolean;
   isMobile: boolean;
   onMenuClick: () => void;
   /** Persists a new title for a session; resolves false when the backend refuses it. */
   onRenameSession: (sessionId: string, summary: string) => Promise<boolean>;
   onOpenSession: (sessionId: string) => void;
+  /** The file explorer beside the chat, off by default as in Cursor. */
+  files: PanelToggle;
   terminal: PanelToggle;
   browser: PanelToggle;
   background: PanelToggle & { runningCount: number };
@@ -68,22 +64,20 @@ function PanelButton({ icon: Icon, label, shortcut, active, onClick, badge }: Pa
 }
 
 /**
- * Rendered by WorkspaceMain: one compact bar in the spirit of Claude Code —
- * the session (with its parent and forks), the view tabs, and on the right
- * the toggles for the background
- * processes drawer, the terminal dock and the browser.
+ * Rendered by WorkspaceMain: one compact bar in the spirit of Cursor and
+ * Claude Code — the explorer toggle and the session (with its parent and
+ * forks) on the left; there are no view tabs, the workspace is the chat. On
+ * the right the toggles for the builds and background drawers, the terminal
+ * dock and the browser.
  */
 export default function WorkspaceHeader({
-  activeTab,
-  setActiveTab,
   selectedProject,
   selectedSession,
-  shouldShowTasksTab,
-  shouldShowBrowserTab,
   isMobile,
   onMenuClick,
   onRenameSession,
   onOpenSession,
+  files,
   terminal,
   browser,
   background,
@@ -96,24 +90,22 @@ export default function WorkspaceHeader({
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
         <div className="flex min-w-0 flex-[1_1_14rem] items-center gap-2">
           {isMobile && <MobileMenuButton onMenuClick={onMenuClick} />}
+          <PanelButton
+            icon={FolderTree}
+            label={t('workspace.files.title', { defaultValue: 'Files' })}
+            shortcut="Ctrl+Shift+E"
+            active={files.open}
+            onClick={files.onToggle}
+          />
           <WorkspaceTitle
-            activeTab={activeTab}
+            activeTab="chat"
             selectedProject={selectedProject}
             selectedSession={selectedSession}
-            shouldShowTasksTab={shouldShowTasksTab}
+            shouldShowTasksTab={false}
             onRenameSession={onRenameSession}
             onOpenSession={onOpenSession}
           />
           <WorkspaceConnectionStatus />
-        </div>
-
-        <div className="scrollbar-hide order-last w-full overflow-x-auto md:order-none md:w-auto">
-          <WorkspaceTabs
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            shouldShowTasksTab={shouldShowTasksTab}
-            shouldShowBrowserTab={shouldShowBrowserTab}
-          />
         </div>
 
         <div className="ml-auto flex flex-shrink-0 items-center gap-1">
