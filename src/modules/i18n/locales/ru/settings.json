@@ -145,7 +145,7 @@
       "title": "Вебхук",
       "description": "Отправляет события запусков на ваш собственный HTTP-эндпоинт (например, n8n, Home Assistant или чат-ретранслятор), даже когда браузер не открыт.",
       "urlLabel": "URL назначения",
-      "urlPlaceholder": "https://example.com/hooks/cloudcli",
+      "urlPlaceholder": "https://example.com/hooks/layero",
       "allowHttp": "Разрешить незашифрованный HTTP (только для этого компьютера или вашей локальной сети)",
       "enabled": "Включено",
       "save": "Сохранить",
@@ -417,7 +417,7 @@
       "versionUnavailable": "Не удалось определить версию",
       "updateAvailable": "Доступно обновление: v{{version}}",
       "upToDate": "Актуальная версия",
-      "bundled": "Поставляется вместе с CloudCLI и обновляется вместе с ним.",
+      "bundled": "Поставляется вместе с Layero Workspace и обновляется вместе с ним.",
       "platform": "Управляется платформой хостинга.",
       "updateTo": "Обновить до v{{version}}",
       "runUpdater": "Запустить обновление",
@@ -614,5 +614,11 @@
     "installAriaLabel": "URL git-репозитория плагина",
     "tab": "вкладка",
     "runningStatus": "запущен"
+  },
+  "about": {
+    "tagline": "Удалённое рабочее пространство для ИИ-агентов на Layero",
+    "source": "Исходный код",
+    "basedOn": "Основано на открытом проекте",
+    "licensed": "Лицензия AGPL-3.0."
   }
 }

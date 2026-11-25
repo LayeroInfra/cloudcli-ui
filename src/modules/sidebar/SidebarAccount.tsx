@@ -22,6 +22,7 @@ import { useTheme } from '@/shared/context/ThemeContext';
 import { useSetUiPreference, useUiPreferences } from '@/shared/context/UiPreferencesContext';
 import type { ClaudeRateLimitWindow, LLMProvider, PreferenceToggleKey, ProviderAuthStatus, SettingsMainTab } from '@/shared/types';
 import { AnchoredPopover, LLMProviderLogo } from '@/shared/ui';
+import { PRODUCT_NAME } from '@/shared/constants';
 import { cn } from '@/shared/utils';
 import { useClaudeRateLimits } from '@/modules/sidebar/hooks/useClaudeRateLimits';
 
@@ -366,7 +367,7 @@ export default function SidebarAccount({ provider, currentVersion, isCompact, on
               <span className="flex-1">{t('account.source', { defaultValue: 'Source code · Layero edition' })}</span>
               <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground" />
             </a>
-            <div className="px-3 pb-1 pt-1.5 text-[10px] text-muted-foreground/70">CloudCLI v{currentVersion}</div>
+            <div className="px-3 pb-1 pt-1.5 text-[10px] text-muted-foreground/70">{PRODUCT_NAME} v{currentVersion}</div>
           </div>
         )}
       </AnchoredPopover>

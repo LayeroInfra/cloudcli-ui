@@ -170,7 +170,7 @@
       "title": "Webhook",
       "description": "即使没有打开浏览器，也会把运行事件发送到您自己的 HTTP 端点（例如 n8n、Home Assistant 或聊天中转服务）。",
       "urlLabel": "目标 URL",
-      "urlPlaceholder": "https://example.com/hooks/cloudcli",
+      "urlPlaceholder": "https://example.com/hooks/layero",
       "allowHttp": "允许未加密的 HTTP（仅限本机或本地网络）",
       "enabled": "已启用",
       "save": "保存",
@@ -445,7 +445,7 @@
       "versionUnavailable": "无法读取版本",
       "updateAvailable": "有可用更新：v{{version}}",
       "upToDate": "已是最新",
-      "bundled": "随 CloudCLI 一起提供，并随其一起更新。",
+      "bundled": "随 Layero Workspace 一起提供，并随其一起更新。",
       "platform": "由托管平台管理。",
       "updateTo": "更新到 v{{version}}",
       "runUpdater": "运行更新程序",
@@ -605,7 +605,7 @@
     },
     "managed": {
       "badge": "已托管",
-      "hint": "由 CloudCLI 管理。"
+      "hint": "由 Layero Workspace 管理。"
     },
     "help": {
       "title": "关于 Codex MCP",

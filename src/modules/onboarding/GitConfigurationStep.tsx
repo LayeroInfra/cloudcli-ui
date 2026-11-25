@@ -21,10 +21,10 @@ export default function GitConfigurationStep({
   return (
     <div className="space-y-5">
       <div className="text-center">
-        <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-inset ring-primary/20">
-          <GitBranch className="h-7 w-7 text-primary" />
+        <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-border-soft bg-muted">
+          <GitBranch className="h-5 w-5 text-foreground" />
         </div>
-        <h2 className="font-serif text-xl font-bold tracking-tight text-foreground">{t('onboarding.gitStepTitle')}</h2>
+        <h2 className="text-xl font-semibold tracking-tightish text-foreground">{t('onboarding.gitStepTitle')}</h2>
         <p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">
           {t('onboarding.gitStepDescription')}
         </p>
@@ -32,16 +32,16 @@ export default function GitConfigurationStep({
 
       <div className="space-y-4">
         <div>
-          <label htmlFor="gitName" className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
-            <User className="h-4 w-4" />
-            {t('onboarding.gitNameLabel')} <span className="text-red-500">*</span>
+          <label htmlFor="gitName" className="mb-1.5 flex items-center gap-1.5 text-[13px] font-medium text-foreground">
+            <User className="h-3.5 w-3.5 text-muted-foreground" />
+            {t('onboarding.gitNameLabel')} <span className="text-destructive">*</span>
           </label>
           <input
             type="text"
             id="gitName"
             value={gitName}
             onChange={(event) => onGitNameChange(event.target.value)}
-            className="w-full rounded-xl border border-border bg-background/60 px-4 py-2.5 text-foreground shadow-sm transition-colors placeholder:text-muted-foreground/60 hover:border-foreground/20 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="h-11 w-full rounded-lg border border-input bg-card px-3.5 text-base text-foreground shadow-sm transition-colors placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/10 sm:text-sm"
             placeholder={t('onboarding.gitNamePlaceholder')}
             required
             disabled={isSubmitting}
@@ -50,16 +50,16 @@ export default function GitConfigurationStep({
         </div>
 
         <div>
-          <label htmlFor="gitEmail" className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
-            <Mail className="h-4 w-4" />
-            {t('onboarding.gitEmailLabel')} <span className="text-red-500">*</span>
+          <label htmlFor="gitEmail" className="mb-1.5 flex items-center gap-1.5 text-[13px] font-medium text-foreground">
+            <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+            {t('onboarding.gitEmailLabel')} <span className="text-destructive">*</span>
           </label>
           <input
             type="email"
             id="gitEmail"
             value={gitEmail}
             onChange={(event) => onGitEmailChange(event.target.value)}
-            className="w-full rounded-xl border border-border bg-background/60 px-4 py-2.5 text-foreground shadow-sm transition-colors placeholder:text-muted-foreground/60 hover:border-foreground/20 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="h-11 w-full rounded-lg border border-input bg-card px-3.5 text-base text-foreground shadow-sm transition-colors placeholder:text-muted-foreground/70 hover:border-border-strong focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/10 sm:text-sm"
             placeholder={t('onboarding.gitEmailPlaceholder')}
             required
             disabled={isSubmitting}

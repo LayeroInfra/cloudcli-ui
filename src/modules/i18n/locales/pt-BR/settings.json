@@ -170,7 +170,7 @@
       "title": "Webhook",
       "description": "Envia os eventos de execução para o seu próprio endpoint HTTP (por exemplo n8n, Home Assistant ou um relay de chat), mesmo sem nenhum navegador aberto.",
       "urlLabel": "URL de destino",
-      "urlPlaceholder": "https://example.com/hooks/cloudcli",
+      "urlPlaceholder": "https://example.com/hooks/layero",
       "allowHttp": "Permitir HTTP sem criptografia (somente para esta máquina ou sua rede local)",
       "enabled": "Ativado",
       "save": "Salvar",
@@ -462,7 +462,7 @@
       "versionUnavailable": "Não foi possível ler a versão",
       "updateAvailable": "Atualização disponível: v{{version}}",
       "upToDate": "Atualizada",
-      "bundled": "Vem com o CloudCLI e é atualizada junto com ele.",
+      "bundled": "Vem com o Layero Workspace e é atualizada junto com ele.",
       "platform": "Gerenciada pela plataforma de hospedagem.",
       "updateTo": "Atualizar para v{{version}}",
       "runUpdater": "Executar atualizador",
@@ -635,7 +635,7 @@
     },
     "managed": {
       "badge": "Gerenciado",
-      "hint": "Gerenciado pelo CloudCLI."
+      "hint": "Gerenciado pelo Layero Workspace."
     },
     "help": {
       "title": "Sobre MCP do Codex",
@@ -906,11 +906,6 @@
     "configCwd": "Cwd",
     "configEnvVars": "Vars de ambiente"
   },
-  "mcpTeamCard": {
-    "title": "Configs MCP da equipe",
-    "description": "Compartilhe configurações de servidores MCP com sua equipe. Todos ficam em sincronia automaticamente.",
-    "proLink": "Disponível com CloudCLI Pro"
-  },
   "mcpServersAddErrors": {
     "loadFailedProvider": "Falha ao carregar servidores MCP do {{provider}}",
     "deleteFailed": "Falha ao excluir servidor MCP",
@@ -924,17 +919,6 @@
   },
   "about": {
     "tagline": "Interface de assistente de codificação com IA de código aberto",
-    "starOnGitHub": "Dar estrela no GitHub",
-    "docs": "Docs",
-    "hostedTitle": "Experimente o CloudCLI hospedado",
-    "hostedDescription": "Colaboração em equipe, configs MCP compartilhados, sincronização de configurações entre ambientes e infraestrutura gerenciada.",
-    "learnMore": "Saiba mais",
-    "proFeaturesTitle": "Recursos do CloudCLI Pro",
-    "syncSettingsTitle": "Sincronizar configurações",
-    "syncSettingsDescription": "Mantenha suas preferências, configs MCP e tema em sincronia em todos os seus ambientes.",
-    "teamManagementTitle": "Gerenciamento de equipe",
-    "teamManagementDescription": "Múltiplos usuários, acesso baseado em funções e projetos compartilhados para sua equipe.",
-    "licensed": "Licenciado sob AGPL-3.0",
-    "proCta": "Disponível com CloudCLI Pro"
+    "licensed": "Licenciado sob AGPL-3.0"
   }
 }

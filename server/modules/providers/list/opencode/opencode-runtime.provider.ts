@@ -784,7 +784,7 @@ async function assertSupportedOpenCode(client: OpencodeClient): Promise<void> {
   } catch (error) {
     // `/global/health` itself only exists from 1.0.224 on.
     throw new Error(
-      `CloudCLI needs OpenCode ${MIN_OPENCODE_VERSION} or newer, and this OpenCode did not report its version `
+      `Layero Workspace needs OpenCode ${MIN_OPENCODE_VERSION} or newer, and this OpenCode did not report its version `
       + `(${readErrorMessage(error)}). ${upgradeHint}`,
     );
   }

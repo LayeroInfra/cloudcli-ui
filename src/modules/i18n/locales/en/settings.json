@@ -170,7 +170,7 @@
       "title": "Webhook",
       "description": "Send run events to your own HTTP endpoint (for example n8n, Home Assistant or a chat relay), even while no browser is open.",
       "urlLabel": "Destination URL",
-      "urlPlaceholder": "https://example.com/hooks/cloudcli",
+      "urlPlaceholder": "https://example.com/hooks/layero",
       "allowHttp": "Allow plain HTTP (unencrypted; only for this machine or your local network)",
       "enabled": "Enabled",
       "save": "Save",
@@ -467,7 +467,7 @@
       "versionUnavailable": "Could not read the version",
       "updateAvailable": "Update available: v{{version}}",
       "upToDate": "Up to date",
-      "bundled": "Ships with CloudCLI and is updated together with it.",
+      "bundled": "Ships with Layero Workspace and is updated together with it.",
       "platform": "Managed by the hosting platform.",
       "updateTo": "Update to v{{version}}",
       "runUpdater": "Run updater",
@@ -640,7 +640,7 @@
     },
     "managed": {
       "badge": "Managed",
-      "hint": "Managed by CloudCLI."
+      "hint": "Managed by Layero Workspace."
     },
     "help": {
       "title": "About Codex MCP",
@@ -915,11 +915,6 @@
     "configCwd": "Cwd",
     "configEnvVars": "Env Vars"
   },
-  "mcpTeamCard": {
-    "title": "Team MCP Configs",
-    "description": "Share MCP server configurations across your team. Everyone stays in sync automatically.",
-    "proLink": "Available with CloudCLI Pro"
-  },
   "mcpServersAddErrors": {
     "loadFailedProvider": "Failed to load {{provider}} MCP servers",
     "deleteFailed": "Failed to delete MCP server",
@@ -932,18 +927,9 @@
     "unknownError": "Unknown error"
   },
   "about": {
-    "tagline": "Open-source AI coding assistant interface",
-    "starOnGitHub": "Star on GitHub",
-    "docs": "Docs",
-    "hostedTitle": "Try CloudCLI Hosted",
-    "hostedDescription": "Team collaboration, shared MCP configs, settings sync across environments, and managed infrastructure.",
-    "learnMore": "Learn more",
-    "proFeaturesTitle": "CloudCLI Pro Features",
-    "syncSettingsTitle": "Sync Settings",
-    "syncSettingsDescription": "Keep your preferences, MCP configs, and theme in sync across all your environments.",
-    "teamManagementTitle": "Team Management",
-    "teamManagementDescription": "Multiple users, role-based access, and shared projects for your team.",
-    "licensed": "Licensed under AGPL-3.0",
-    "proCta": "Available with CloudCLI Pro"
+    "tagline": "A remote workspace for AI coding agents on Layero",
+    "source": "Source code",
+    "basedOn": "Built on the open-source",
+    "licensed": "Licensed under AGPL-3.0."
   }
 }

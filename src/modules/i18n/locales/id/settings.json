@@ -170,7 +170,7 @@
       "title": "Webhook",
       "description": "Mengirim event proses ke endpoint HTTP milik Anda (misalnya n8n, Home Assistant, atau relay chat), bahkan saat tidak ada browser yang terbuka.",
       "urlLabel": "URL tujuan",
-      "urlPlaceholder": "https://example.com/hooks/cloudcli",
+      "urlPlaceholder": "https://example.com/hooks/layero",
       "allowHttp": "Izinkan HTTP tanpa enkripsi (hanya untuk komputer ini atau jaringan lokal Anda)",
       "enabled": "Aktif",
       "save": "Simpan",
@@ -462,7 +462,7 @@
       "versionUnavailable": "Versi tidak dapat dibaca",
       "updateAvailable": "Pembaruan tersedia: v{{version}}",
       "upToDate": "Sudah terbaru",
-      "bundled": "Disertakan bersama CloudCLI dan diperbarui bersamanya.",
+      "bundled": "Disertakan bersama Layero Workspace dan diperbarui bersamanya.",
       "platform": "Dikelola oleh platform hosting.",
       "updateTo": "Perbarui ke v{{version}}",
       "runUpdater": "Jalankan pembaru",
@@ -622,7 +622,7 @@
     },
     "managed": {
       "badge": "Dikelola",
-      "hint": "Dikelola oleh CloudCLI."
+      "hint": "Dikelola oleh Layero Workspace."
     },
     "help": {
       "title": "Tentang MCP Codex",
@@ -878,11 +878,6 @@
     "configCwd": "Cwd",
     "configEnvVars": "Env Vars"
   },
-  "mcpTeamCard": {
-    "title": "Konfigurasi MCP Tim",
-    "description": "Bagikan konfigurasi server MCP di seluruh tim. Semua anggota tetap tersinkron otomatis.",
-    "proLink": "Tersedia dengan CloudCLI Pro"
-  },
   "mcpServersAddErrors": {
     "loadFailedProvider": "Gagal memuat server MCP {{provider}}",
     "deleteFailed": "Gagal menghapus server MCP",
@@ -896,17 +891,6 @@
   },
   "about": {
     "tagline": "Antarmuka asisten coding AI open source",
-    "starOnGitHub": "Beri Bintang di GitHub",
-    "docs": "Dokumentasi",
-    "hostedTitle": "Coba CloudCLI Hosted",
-    "hostedDescription": "Kolaborasi tim, konfigurasi MCP bersama, sinkronisasi pengaturan antar-environment, dan infrastruktur terkelola.",
-    "learnMore": "Pelajari lebih lanjut",
-    "proFeaturesTitle": "Fitur CloudCLI Pro",
-    "syncSettingsTitle": "Sinkronkan Pengaturan",
-    "syncSettingsDescription": "Jaga preferensi, konfigurasi MCP, dan tema tetap sinkron di semua environment.",
-    "teamManagementTitle": "Manajemen Tim",
-    "teamManagementDescription": "Banyak pengguna, akses berbasis peran, dan proyek bersama untuk tim.",
-    "licensed": "Dilisensikan di bawah AGPL-3.0",
-    "proCta": "Tersedia dengan CloudCLI Pro"
+    "licensed": "Dilisensikan di bawah AGPL-3.0"
   }
 }

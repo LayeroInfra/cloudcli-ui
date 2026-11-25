@@ -92,7 +92,7 @@ export default function NextTaskBanner({ onShowAllTasks = null, onStartTask = nu
 
             <button
               onClick={() => setShowSetupModal(true)}
-              className="flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-xs text-white transition-colors hover:bg-blue-700"
+              className="flex items-center gap-1 rounded bg-primary px-2 py-1 text-xs text-primary-foreground transition-colors hover:bg-primary/90"
             >
               <Terminal className="h-3 w-3" />
               {t('tasks:banner.initialize')}
@@ -145,7 +145,7 @@ export default function NextTaskBanner({ onShowAllTasks = null, onStartTask = nu
             <div className="flex flex-shrink-0 items-center gap-1">
               <button
                 onClick={() => onStartTask?.()}
-                className="flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                className="flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
               >
                 <Play className="h-3 w-3" />
                 {t('tasks:banner.startTask')}

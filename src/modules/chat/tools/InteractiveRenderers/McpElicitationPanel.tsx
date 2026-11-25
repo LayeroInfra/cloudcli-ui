@@ -236,7 +236,7 @@ const isOpenableUrl = (url: string | undefined): boolean => {
   }
 };
 
-const inputClassName = 'w-full rounded-lg border-0 bg-gray-50 px-3 py-1.5 text-[13px] text-gray-900 outline-none ring-1 ring-gray-200 transition-shadow duration-200 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-400 dark:bg-gray-900/60 dark:text-gray-100 dark:ring-gray-700 dark:placeholder:text-gray-600 dark:focus:ring-blue-500';
+const inputClassName = 'w-full rounded-lg border-0 bg-gray-50 px-3 py-1.5 text-[13px] text-gray-900 outline-none ring-1 ring-gray-200 transition-shadow duration-200 placeholder:text-gray-400 focus:ring-2 focus:ring-ring/20 dark:bg-gray-900/60 dark:text-gray-100 dark:ring-gray-700 dark:placeholder:text-gray-600 ';
 
 /**
  * Registered by chat's PermissionRequestsBanner as the permission panel for
@@ -520,7 +520,7 @@ export const McpElicitationPanel: React.FC<PermissionPanelProps> = ({ request, o
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={handleOpenUrl}
-                  className="rounded-lg bg-blue-600 px-3 py-1.5 text-[11px] font-medium text-white transition-all duration-150 hover:bg-blue-700"
+                  className="rounded-lg bg-primary px-3 py-1.5 text-[11px] font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90"
                 >
                   {t('chat:mcpElicitation.openLink', { defaultValue: 'Open link' })}
                 </a>
@@ -528,7 +528,7 @@ export const McpElicitationPanel: React.FC<PermissionPanelProps> = ({ request, o
             ) : (
               <button
                 type="submit"
-                className="rounded-lg bg-blue-600 px-3 py-1.5 text-[11px] font-medium text-white transition-all duration-150 hover:bg-blue-700"
+                className="rounded-lg bg-primary px-3 py-1.5 text-[11px] font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90"
               >
                 {t('chat:mcpElicitation.submit', { defaultValue: 'Submit' })}
               </button>

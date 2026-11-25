@@ -2,6 +2,76 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+  Geist / Geist Mono (SIL OFL 1.1) — the Layero design-system typefaces,
+  self-hosted from /fonts like the Layero panel: no third-party font CDN.
+  Split by unicode-range so the browser downloads only the subsets in use.
+*/
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/geist-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/geist-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/geist-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/geist-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/geist-mono-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/geist-mono-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/geist-mono-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/geist-mono-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* Global spinner animation - defined early to ensure it loads */
 @keyframes spin {
   0% {
@@ -22,39 +92,50 @@
 }
 
 @layer base {
+  /*
+    Layero Workspace palette — mirrors the Layero design system
+    (design-system/src/index.css): warm "vellum" neutrals in light, refined
+    zinc in dark, and ink (not blue) as the primary action colour. Values stay
+    as HSL channels because the app composes them as hsl(var(--x) / alpha).
+  */
   :root {
-    --background: 44 22% 96%;
-    --foreground: 36 25% 4%;
+    --background: 60 25% 98.4%;        /* #fcfcfa */
+    --foreground: 60 2.6% 7.6%;        /* #141413 ink */
     --card: 0 0% 100%;
-    --card-foreground: 36 25% 4%;
+    --card-foreground: 60 2.6% 7.6%;
     --popover: 0 0% 100%;
-    --popover-foreground: 36 25% 4%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 44 15% 91%;
-    --secondary-foreground: 36 15% 18%;
-    --muted: 44 15% 91%;
-    --muted-foreground: 40 5% 44%;
-    --accent: 44 15% 91%;
-    --accent-foreground: 36 15% 18%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 44 14% 87%;
-    --input: 44 14% 87%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+    --popover-foreground: 60 2.6% 7.6%;
+    --primary: 60 2.6% 7.6%;           /* ink */
+    --primary-foreground: 0 0% 98%;
+    --secondary: 46.7 27.3% 93.5%;     /* #f3f1ea */
+    --secondary-foreground: 60 2.6% 7.6%;
+    --muted: 46.7 27.3% 93.5%;
+    --muted-foreground: 51.4 3.1% 43.7%; /* #73726c dusty */
+    --accent: 46.7 27.3% 93.5%;
+    --accent-foreground: 60 2.6% 7.6%;
+    --destructive: 358.8 100% 61%;     /* Apple system red */
+    --destructive-foreground: 0 0% 98%;
+    --border: 50.8 16.5% 84.5%;        /* #dedcd1 */
+    --input: 50.8 16.5% 84.5%;
+    --ring: 60 2.6% 7.6%;
+    --radius: 0.625rem;
+
+    /* Layero extras: softer/stronger borders and the brand green. */
+    --border-soft: 50 21.4% 89%;       /* #e9e7dd */
+    --border-strong: 50.5 15% 75.1%;   /* #c9c6b6 */
+    --leaf: 142 53% 44%;               /* #35aa60 */
 
     /* Nav design tokens */
-    --nav-glass-bg: 44 22% 96% / 0.7;
+    --nav-glass-bg: 60 25% 98.4% / 0.78;
     --nav-glass-blur: 20px;
-    --nav-glass-saturate: 1.8;
-    --nav-tab-glow: 221.2 83.2% 53.3% / 0.18;
-    --nav-tab-ring: 221.2 83.2% 53.3% / 0.10;
-    --nav-float-shadow: 0 0% 0% / 0.06;
-    --nav-float-ring: 44 14% 87% / 0.5;
-    --nav-divider-color: 44 14% 87% / 0.5;
-    --nav-input-bg: 44 15% 91% / 0.5;
-    --nav-input-focus-ring: 221.2 83.2% 53.3% / 0.22;
+    --nav-glass-saturate: 1.4;
+    --nav-tab-glow: 60 2.6% 7.6% / 0.08;
+    --nav-tab-ring: 60 2.6% 7.6% / 0.08;
+    --nav-float-shadow: 60 2.6% 7.6% / 0.06;
+    --nav-float-ring: 50.8 16.5% 84.5% / 0.6;
+    --nav-divider-color: 50.8 16.5% 84.5% / 0.7;
+    --nav-input-bg: 46.7 27.3% 93.5% / 0.7;
+    --nav-input-focus-ring: 60 2.6% 7.6% / 0.1;
 
     /* Safe area CSS variables */
     --safe-area-inset-top: env(safe-area-inset-top);
@@ -85,37 +166,41 @@
   }
 
   .dark {
-    --background: 0 0% 8%;
-    --foreground: 40 8% 93%;
-    --card: 0 0% 12%;
-    --card-foreground: 40 8% 93%;
-    --popover: 0 0% 12%;
-    --popover-foreground: 40 8% 93%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 0 0% 8%;
-    --secondary: 0 0% 17%;
-    --secondary-foreground: 40 8% 93%;
-    --muted: 0 0% 17%;
-    --muted-foreground: 0 0% 60%;
-    --accent: 0 0% 17%;
-    --accent-foreground: 40 8% 93%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 40 8% 93%;
-    --border: 0 0% 17%;
-    --input: 0 0% 23%;
-    --ring: 217.2 91.2% 59.8%;
+    --background: 240 7.3% 8%;         /* #131316 */
+    --foreground: 240 11.1% 96.5%;     /* #f5f5f7 */
+    --card: 240 6.3% 12.5%;            /* #1e1e22 */
+    --card-foreground: 240 11.1% 96.5%;
+    --popover: 240 7.5% 15.7%;         /* #25252b */
+    --popover-foreground: 240 11.1% 96.5%;
+    --primary: 240 11.1% 96.5%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 7.1% 19.4%;       /* #2e2e35 */
+    --secondary-foreground: 240 11.1% 96.5%;
+    --muted: 240 7.1% 19.4%;
+    --muted-foreground: 240 5.8% 62.9%; /* #9b9ba6 */
+    --accent: 240 7.1% 19.4%;
+    --accent-foreground: 240 11.1% 96.5%;
+    --destructive: 359 100% 62.9%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 6.3% 25.1%;          /* #3c3c44 */
+    --input: 240 6.3% 25.1%;
+    --ring: 240 4.9% 83.9%;
+
+    --border-soft: 240 7.1% 19.4%;
+    --border-strong: 240 5.6% 31.6%;
+    --leaf: 142 50% 50%;               /* #3fbe6e */
 
     /* Nav design tokens — dark overrides */
-    --nav-glass-bg: 0 0% 12% / 0.55;
+    --nav-glass-bg: 240 6.3% 12.5% / 0.7;
     --nav-glass-blur: 24px;
-    --nav-glass-saturate: 1.6;
-    --nav-tab-glow: 217.2 91.2% 59.8% / 0.25;
-    --nav-tab-ring: 217.2 91.2% 59.8% / 0.15;
+    --nav-glass-saturate: 1.4;
+    --nav-tab-glow: 240 11.1% 96.5% / 0.1;
+    --nav-tab-ring: 240 11.1% 96.5% / 0.1;
     --nav-float-shadow: 0 0% 0% / 0.35;
-    --nav-float-ring: 0 0% 17% / 0.3;
-    --nav-divider-color: 0 0% 17% / 0.5;
-    --nav-input-bg: 0 0% 17% / 0.5;
-    --nav-input-focus-ring: 217.2 91.2% 59.8% / 0.25;
+    --nav-float-ring: 240 6.3% 25.1% / 0.4;
+    --nav-divider-color: 240 6.3% 25.1% / 0.6;
+    --nav-input-bg: 240 7.1% 19.4% / 0.6;
+    --nav-input-focus-ring: 240 11.1% 96.5% / 0.12;
   }
 }
 
@@ -129,7 +214,7 @@
   body {
     @apply bg-background text-foreground;
 
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     margin: 0;
@@ -390,7 +475,7 @@
   
   /* Ensure checkbox styling is preserved */
   input[type="checkbox"] {
-    @apply accent-blue-600;
+    accent-color: hsl(var(--primary));
     opacity: 1;
   }
   
@@ -402,38 +487,38 @@
   
   /* Fix checkbox appearance in dark mode */
   .dark input[type="checkbox"] {
-    background-color: rgb(31 41 55); /* gray-800 */
-    border-color: rgb(75 85 99); /* gray-600 */
-    color: rgb(37 99 235); /* blue-600 */
+    background-color: hsl(var(--card));
+    border-color: hsl(var(--border-strong));
+    color: hsl(var(--primary));
     color-scheme: dark;
   }
   
   .dark input[type="checkbox"]:checked {
-    background-color: rgb(37 99 235); /* blue-600 */
-    border-color: rgb(37 99 235); /* blue-600 */
+    background-color: hsl(var(--primary));
+    border-color: hsl(var(--primary));
   }
   
   .dark input[type="checkbox"]:focus {
-    --tw-ring-color: rgb(59 130 246); /* blue-500 */
-    --tw-ring-offset-color: rgb(31 41 55); /* gray-800 */
+    --tw-ring-color: hsl(var(--ring));
+    --tw-ring-offset-color: hsl(var(--card));
   }
   
   /* Fix radio button appearance in dark mode */
   .dark input[type="radio"] {
-    background-color: rgb(31 41 55); /* gray-800 */
-    border-color: rgb(75 85 99); /* gray-600 */
-    color: rgb(37 99 235); /* blue-600 */
+    background-color: hsl(var(--card));
+    border-color: hsl(var(--border-strong));
+    color: hsl(var(--primary));
     color-scheme: dark;
   }
   
   .dark input[type="radio"]:checked {
-    background-color: rgb(37 99 235); /* blue-600 */
-    border-color: rgb(37 99 235); /* blue-600 */
+    background-color: hsl(var(--primary));
+    border-color: hsl(var(--primary));
   }
   
   .dark input[type="radio"]:focus {
-    --tw-ring-color: rgb(59 130 246); /* blue-500 */
-    --tw-ring-offset-color: rgb(31 41 55); /* gray-800 */
+    --tw-ring-color: hsl(var(--ring));
+    --tw-ring-offset-color: hsl(var(--card));
   }
   
   /* Ensure textarea text is always visible in dark mode */
@@ -476,7 +561,7 @@
   
   /* Fix focus-within container issues in dark mode */
   .dark .focus-within\:ring-2:focus-within {
-    background-color: rgb(20 20 20) !important;
+    background-color: hsl(var(--background)) !important;
   }
   
   /* Ensure textarea remains transparent with visible text */
@@ -899,12 +984,12 @@
   
   /* Fix focus ring offset color in dark mode */
   .dark [class*="ring-offset"] {
-    --tw-ring-offset-color: rgb(20 20 20);
+    --tw-ring-offset-color: hsl(var(--background));
   }
 
   /* Ensure buttons don't show white backgrounds in dark mode */
   .dark button:focus {
-    --tw-ring-offset-color: rgb(20 20 20);
+    --tw-ring-offset-color: hsl(var(--background));
   }
   
   /* Fix mobile select dropdown styling */
@@ -942,13 +1027,13 @@
   select option {
     font-size: 16px !important;
     padding: 8px !important;
-    background-color: var(--background) !important;
-    color: var(--foreground) !important;
+    background-color: hsl(var(--popover)) !important;
+    color: hsl(var(--popover-foreground)) !important;
   }
   
   .dark select option {
-    background-color: rgb(31 31 31) !important;
-    color: rgb(237 235 230) !important;
+    background-color: hsl(var(--popover)) !important;
+    color: hsl(var(--popover-foreground)) !important;
   }
 
   /* Tool details chevron animation */
