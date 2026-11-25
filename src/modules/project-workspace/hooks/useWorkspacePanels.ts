@@ -21,7 +21,7 @@ function readSavedPanels(): WorkspacePanelsState {
       files: parsed.files === true,
       terminal: parsed.terminal === true,
       browser: parsed.browser === true,
-      // The background drawer is an overlay; reopening it on load would hide the chat.
+      // The cards float over the chat; reopening them on load would cover it.
       background: false,
       builds: false,
     };
@@ -30,19 +30,10 @@ function readSavedPanels(): WorkspacePanelsState {
   }
 }
 
-/** The right-hand drawers overlay the same space, so opening one closes the other. */
-const DRAWERS: WorkspacePanelId[] = ['background', 'builds'];
-
-const withDrawerClosed = (state: WorkspacePanelsState, opened: WorkspacePanelId): WorkspacePanelsState => {
-  if (!DRAWERS.includes(opened) || !state[opened]) return state;
-  const next = { ...state };
-  for (const drawer of DRAWERS) if (drawer !== opened) next[drawer] = false;
-  return next;
-};
-
 /**
  * Open/closed state of the workspace's file explorer, terminal dock, browser
- * panel and background-tasks and builds drawers, plus their keyboard
+ * panel and the background-tasks and builds cards (which may be open
+ * together, stacked over the chat), plus their keyboard
  * shortcuts: Ctrl+Shift+E (files, as in Cursor and VS Code),
  * Ctrl+` (terminal), Ctrl+Shift+B (browser), Ctrl+Shift+J (background).
  */
@@ -59,11 +50,11 @@ export function useWorkspacePanels() {
   }, [openPanels]);
 
   const togglePanel = useCallback((panel: WorkspacePanelId) => {
-    setOpenPanels((previous) => withDrawerClosed({ ...previous, [panel]: !previous[panel] }, panel));
+    setOpenPanels((previous) => ({ ...previous, [panel]: !previous[panel] }));
   }, []);
 
   const setPanelOpen = useCallback((panel: WorkspacePanelId, open: boolean) => {
-    setOpenPanels((previous) => (previous[panel] === open ? previous : withDrawerClosed({ ...previous, [panel]: open }, panel)));
+    setOpenPanels((previous) => (previous[panel] === open ? previous : { ...previous, [panel]: open }));
   }, []);
 
   useEffect(() => {

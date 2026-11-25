@@ -129,7 +129,8 @@ function BuildDetail({ number, active }: { number: number; active: boolean }) {
 }
 
 /**
- * Rendered by WorkspaceMain as a right-hand drawer: the signed-in user's
+ * Rendered by WorkspaceMain as a floating card over the chat, stacked with
+ * the background-tasks card when both are open: the signed-in user's
  * builds of the CloudUI checks pipeline — queued, running, passed or failed —
  * with a button to start one on their Mac. Unfolding a build shows its steps
  * and the tail of its log; a failed one unfolds by itself.
@@ -176,9 +177,9 @@ export default function WorkspaceBuildsPanel({ open, onClose, builds, error, isL
   return (
     <aside
       aria-label={t('workspace.builds.title', { defaultValue: 'Builds' })}
-      className="absolute inset-y-0 right-0 z-40 flex w-full max-w-sm flex-col border-l border-border bg-background shadow-2xl"
+      className="pointer-events-auto flex min-h-0 w-full flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-xl"
     >
-      <div className="flex h-11 flex-shrink-0 items-center gap-1 border-b border-border px-3">
+      <div className="flex h-10 flex-shrink-0 items-center gap-1 border-b border-border px-3">
         <Hammer className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         <h2 className="ml-1 flex-1 text-sm font-semibold">{t('workspace.builds.title', { defaultValue: 'Builds' })}</h2>
         <button
@@ -216,7 +217,7 @@ export default function WorkspaceBuildsPanel({ open, onClose, builds, error, isL
         {isLoading ? (
           [0, 1, 2].map((row) => <div key={row} className="mb-1 h-12 animate-pulse rounded-lg bg-muted" aria-hidden="true" />)
         ) : builds.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center">
+          <div className="flex flex-col items-center justify-center gap-1 px-6 py-5 text-center">
             <p className="text-sm font-medium text-foreground">{t('workspace.builds.emptyTitle', { defaultValue: 'No builds yet' })}</p>
             <p className="text-xs text-muted-foreground">
               {t('workspace.builds.emptyHint', { defaultValue: 'Run the checks here or ask the agent to; they run on your Mac and show up in this list.' })}

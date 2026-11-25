@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next';
 import { SquarePen } from 'lucide-react';
 
 import { ScrollArea } from '@/shared/ui';
+import { cn } from '@/shared/utils';
 import type { Project, SidebarProjectListProps, SettingsMainTab } from '@/shared/types';
 import SidebarFooter from '@/modules/sidebar/SidebarFooter';
 import SidebarHeader from '@/modules/sidebar/SidebarHeader';
@@ -112,6 +113,10 @@ export default function SidebarContent({
           onSessionSelect={projectListProps.onSessionSelect}
           t={t}
         />
+        {/* Headed like Pinned, so the two lists read as separate sections. */}
+        <h3 className={cn('px-2 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground', isCompact ? 'mx-3' : 'mx-1')}>
+          {t('projects.title', { defaultValue: 'Projects' })}
+        </h3>
         <SidebarProjectList {...projectListProps} includeOffPagePins />
       </ScrollArea>
 

@@ -134,8 +134,8 @@ export function countRunningProcesses(activity: ReadonlyMap<string, SessionActiv
 }
 
 /**
- * Rendered by WorkspaceMain as a right-hand drawer, like Claude Code's task
- * list: first every background task of the open session — commands, agents
+ * Rendered by WorkspaceMain as a floating card over the chat, like Claude
+ * Code's task list (stacked with the builds card when both are open): first every background task of the open session — commands, agents
  * and workflows, running or finished — with its status and, unfolded, what it
  * reported; then what other sessions are running, each with a jump to it.
  */
@@ -190,9 +190,9 @@ export default function BackgroundProcessesPanel({
   return (
     <aside
       aria-label={t('workspace.background.title', { defaultValue: 'Background tasks' })}
-      className="absolute inset-y-0 right-0 z-40 flex w-full max-w-sm flex-col border-l border-border bg-background shadow-2xl"
+      className="pointer-events-auto flex min-h-0 w-full flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-xl"
     >
-      <div className="flex h-11 flex-shrink-0 items-center gap-2 border-b border-border px-3">
+      <div className="flex h-10 flex-shrink-0 items-center gap-2 border-b border-border px-3">
         <h2 className="flex-1 text-sm font-semibold">{t('workspace.background.title', { defaultValue: 'Background tasks' })}</h2>
         <kbd className="hidden rounded border border-border px-1 text-[10px] text-muted-foreground sm:inline">Ctrl+Shift+J</kbd>
         <button
@@ -227,7 +227,7 @@ export default function BackgroundProcessesPanel({
           <h3 className={sectionHeadingClass}>{t('workspace.background.otherSessions', { defaultValue: 'Other sessions' })}</h3>
         )}
         {entries.length === 0 && !hasSessionTasks ? (
-          <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center">
+          <div className="flex flex-col items-center justify-center gap-1 px-6 py-5 text-center">
             <p className="text-sm font-medium text-foreground">{t('workspace.background.emptyTitle', { defaultValue: 'Nothing is running' })}</p>
             <p className="text-xs text-muted-foreground">
               {t('workspace.background.emptyHint', { defaultValue: 'Agents, workflows and commands the sessions start in the background show up here.' })}

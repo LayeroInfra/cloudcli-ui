@@ -35,7 +35,7 @@ export default function SidebarPinnedSessions({ projects, selectedSession, curre
   if (!pins || families.length === 0) return null;
 
   return (
-    <section className={cn('pb-2', isCompact ? 'px-3' : 'px-1')} data-testid="pinned-sessions-section" aria-label={t('pinned.title', 'Pinned')}>
+    <section className={cn('mb-2 border-b border-border/60 pb-2', isCompact ? 'mx-3' : 'mx-1')} data-testid="pinned-sessions-section" aria-label={t('pinned.title', 'Pinned')}>
       <h3 className="px-2 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t('pinned.title', 'Pinned')}</h3>
       <ul className="space-y-px">
         {families.flatMap((family) => family.rows.map((row) => {

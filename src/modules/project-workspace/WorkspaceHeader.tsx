@@ -26,7 +26,7 @@ type WorkspaceHeaderProps = {
   terminal: PanelToggle;
   browser: PanelToggle;
   background: PanelToggle & { runningCount: number };
-  /** The user's Woodpecker builds drawer; the badge counts queued and running builds. */
+  /** The user's Woodpecker builds card; the badge counts queued and running builds. */
   builds: PanelToggle & { activeCount: number };
 };
 
@@ -67,7 +67,7 @@ function PanelButton({ icon: Icon, label, shortcut, active, onClick, badge }: Pa
  * Rendered by WorkspaceMain: one compact bar in the spirit of Cursor and
  * Claude Code — the explorer toggle and the session (with its parent and
  * forks) on the left; there are no view tabs, the workspace is the chat. On
- * the right the toggles for the builds and background drawers, the terminal
+ * the right the toggles for the builds and background cards, the terminal
  * dock and the browser.
  */
 export default function WorkspaceHeader({

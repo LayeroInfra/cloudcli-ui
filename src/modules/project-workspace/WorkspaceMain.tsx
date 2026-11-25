@@ -20,7 +20,7 @@ import WorkspaceStateView from '@/modules/project-workspace/WorkspaceStateView';
 import WorkspaceErrorBoundary from '@/modules/project-workspace/WorkspaceErrorBoundary';
 
 type WorkspaceMainProps = {
-  /** Every loaded project, for naming sessions in the background-processes drawer. */
+  /** Every loaded project, for naming sessions in the background-tasks card. */
   projects: Project[];
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
@@ -47,7 +47,7 @@ type WorkspaceMainProps = {
 /**
  * Rendered by ProjectMainRegion: the workspace header, the selected project's active tab
  * (chat, files, git, tasks, browser-use or a plugin) with the terminal dock under it, the
- * site-preview browser beside it and the background-processes drawer over it.
+ * site-preview browser beside it and the background-tasks and builds cards over the chat.
  */
 function WorkspaceMain({
   projects,
@@ -77,7 +77,7 @@ function WorkspaceMain({
   const processingSessions = useProcessingSessions();
   const runningProcessCount = countRunningProcesses(processingSessions);
   // The open session's background tasks, finished ones included, as the chat
-  // read them from its transcript; listed by the background-tasks drawer.
+  // read them from its transcript; listed by the background-tasks card.
   const [sessionBackgroundTasks, setSessionBackgroundTasks] = useState<SessionBackgroundTask[]>([]);
   const selectedSessionId = selectedSession?.id ?? null;
 
@@ -88,7 +88,7 @@ function WorkspaceMain({
 
   const closeBackgroundPanel = useCallback(() => setPanelOpen('background', false), [setPanelOpen]);
   const closeBuildsPanel = useCallback(() => setPanelOpen('builds', false), [setPanelOpen]);
-  // The signed-in user's Woodpecker builds, for the builds drawer and its header badge.
+  // The signed-in user's Woodpecker builds, for the builds card and its header badge.
   const workspaceBuilds = useWorkspaceBuilds(openPanels.builds);
   const closeTerminal = useCallback(() => setPanelOpen('terminal', false), [setPanelOpen]);
   const setBrowserOpen = useCallback((open: boolean) => setPanelOpen('browser', open), [setPanelOpen]);
@@ -193,7 +193,7 @@ function WorkspaceMain({
           </aside>
         )}
 
-        <div className={`flex min-h-0 min-w-[200px] flex-col overflow-hidden ${editorExpanded ? 'hidden' : ''} flex-1`}>
+        <div className={`relative flex min-h-0 min-w-[200px] flex-col overflow-hidden ${editorExpanded ? 'hidden' : ''} flex-1`}>
           <WorkspaceErrorBoundary showDetails>
             <ChatInterface
               isActive
@@ -214,6 +214,33 @@ function WorkspaceMain({
               onBackgroundTasksChange={setSessionBackgroundTasks}
             />
           </WorkspaceErrorBoundary>
+
+          {/* Background tasks and builds float over the chat as cards, as in
+              Claude Code; opened together they stack and share the height.
+              They live in the chat column, so an open browser panel stays clear. */}
+          {(openPanels.background || openPanels.builds) && (
+            <div className="pointer-events-none absolute right-3 top-3 z-30 flex max-h-[calc(100%-1.5rem)] w-[min(24rem,calc(100%-1.5rem))] flex-col gap-2">
+              <BackgroundProcessesPanel
+                open={openPanels.background}
+                onClose={closeBackgroundPanel}
+                projects={projects}
+                activeSessionId={selectedSessionId}
+                sessionTasks={sessionBackgroundTasks}
+                sendMessage={sendMessage}
+                onOpenSession={openSession}
+              />
+              <WorkspaceBuildsPanel
+                open={openPanels.builds}
+                onClose={closeBuildsPanel}
+                builds={workspaceBuilds.builds}
+                error={workspaceBuilds.error}
+                isLoading={workspaceBuilds.isLoading}
+                isTriggering={workspaceBuilds.isTriggering}
+                onTrigger={() => void workspaceBuilds.trigger()}
+                onRefresh={() => void workspaceBuilds.refresh()}
+              />
+            </div>
+          )}
         </div>
 
         <EditorSidebar
@@ -243,26 +270,6 @@ function WorkspaceMain({
         {!isMobile && <SitePreviewPanel open={openPanels.browser} onOpenChange={setBrowserOpen} />}
       </div>
 
-      <WorkspaceBuildsPanel
-        open={openPanels.builds}
-        onClose={closeBuildsPanel}
-        builds={workspaceBuilds.builds}
-        error={workspaceBuilds.error}
-        isLoading={workspaceBuilds.isLoading}
-        isTriggering={workspaceBuilds.isTriggering}
-        onTrigger={() => void workspaceBuilds.trigger()}
-        onRefresh={() => void workspaceBuilds.refresh()}
-      />
-
-      <BackgroundProcessesPanel
-        open={openPanels.background}
-        onClose={closeBackgroundPanel}
-        projects={projects}
-        activeSessionId={selectedSessionId}
-        sessionTasks={sessionBackgroundTasks}
-        sendMessage={sendMessage}
-        onOpenSession={openSession}
-      />
     </div>
   );
 }
