@@ -1,10 +1,11 @@
 {
   "pinned": {
-    "title": "Pinned sessions",
+    "title": "Pinned",
     "pin": "Pin session",
     "unpin": "Unpin session",
     "error": "Could not load or save session pins. Please try again.",
-    "withinProject": "Keeps it at the top of its project."
+    "withinProject": "Keeps it at the top of its project.",
+    "withForks": "Adds it and its forks to Pinned, above the projects."
   },
   "projects": {
     "title": "Projects",

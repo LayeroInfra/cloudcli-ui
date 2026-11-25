@@ -186,7 +186,7 @@ export default function SessionOptions({
             ...(pins ? [{
               key: 'pin',
               label: isPinned ? t('pinned.unpin', 'Unpin session') : t('pinned.pin', 'Pin session'),
-              description: t('pinned.withinProject', 'Keeps it at the top of its project.'),
+              description: t('pinned.withForks', 'Adds it and its forks to Pinned, above the projects.'),
               icon: Pin,
               disabled: !pins.ready || pins.pendingSessionId !== null,
               loading: pins.pendingSessionId === sessionId,

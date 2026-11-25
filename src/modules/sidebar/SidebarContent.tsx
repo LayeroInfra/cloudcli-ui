@@ -7,6 +7,8 @@ import type { Project, ReleaseInfo, SidebarProjectListProps, SettingsMainTab } f
 import SidebarFooter from '@/modules/sidebar/SidebarFooter';
 import SidebarHeader from '@/modules/sidebar/SidebarHeader';
 import SidebarProjectList from '@/modules/sidebar/SidebarProjectList';
+import SidebarPinnedSessions from '@/modules/sidebar/SidebarPinnedSessions';
+import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
 
 type SidebarContentProps = {
   isPWA: boolean;
@@ -73,6 +75,7 @@ export default function SidebarContent({
   t,
 }: SidebarContentProps) {
   const isRenamingOnMobile = isMobile && projectListProps.activeRename !== null;
+  const isCompact = useCompactSidebar();
   // "New chat" opens in the project in view, else the one worked in last.
   const newChatProject = projectListProps.selectedProject ?? pickLastActiveProject(projects);
 
@@ -109,6 +112,14 @@ export default function SidebarContent({
       )}
 
       <ScrollArea className="flex-1 overflow-y-auto overscroll-contain md:px-1.5 md:py-2">
+        <SidebarPinnedSessions
+          projects={projects}
+          selectedSession={projectListProps.selectedSession}
+          currentTime={projectListProps.currentTime}
+          isCompact={isCompact}
+          onSessionSelect={projectListProps.onSessionSelect}
+          t={t}
+        />
         <SidebarProjectList {...projectListProps} includeOffPagePins />
       </ScrollArea>
 

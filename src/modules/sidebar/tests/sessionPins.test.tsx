@@ -94,13 +94,16 @@ beforeEach(() => {
   mocks.save.mockReset().mockResolvedValue(response([]));
 });
 
-test('pins sit at the top of their own project, with no separate pinned section', async () => {
+test('pins stay at the top of their project and are repeated in Pinned above the projects', async () => {
   mocks.load.mockResolvedValue(response([B]));
   render(<SessionPinsProvider projects={PROJECTS}><SidebarContent {...contentProps()} /></SessionPinsProvider>);
   const ids = () => [...screen.getByTestId('project-session-tree').querySelectorAll('[data-session-id]')].map((row) => row.getAttribute('data-session-id'));
   await waitFor(() => assert.deepEqual(ids(), ['b', 'a']), { timeout: 4000 });
-  assert.equal(Boolean(screen.queryByTestId('pinned-sessions-section')), false);
-  assert.equal(screen.getAllByText('Title b').length, 1);
+  const pinned = within(screen.getByTestId('pinned-sessions-section'));
+  assert.ok(pinned.getByText('Title b'));
+  assert.ok(pinned.getByText('Project one'));
+  assert.equal(pinned.queryByText('Title a'), null, 'only the pin (and its forks) are repeated');
+  assert.equal(screen.getAllByText('Title b').length, 2, 'once in Pinned, once in its project');
 });
 
 test('project pins remain scoped to their owner and include older pages without altering pagination', async () => {
@@ -120,12 +123,12 @@ test('project pins remain scoped to their owner and include older pages without 
   props.projectListProps = { ...listProps, projects, filteredProjects: projects,
     initialSessionsLoaded: new Set(['project-1', 'project-2']), onLoadMoreSessions: more };
   render(<SessionPinsProvider projects={projects}><SidebarContent {...props} /></SessionPinsProvider>);
-  await waitFor(() => assert.ok(screen.queryByText('Title older')));
+  await waitFor(() => assert.ok(screen.queryAllByText('Title older').length > 0));
   const trees = screen.getAllByTestId('project-session-tree');
   const ids = (tree: HTMLElement) => [...tree.querySelectorAll('[data-session-id]')].map((row) => row.getAttribute('data-session-id'));
   assert.deepEqual(ids(trees[0]), ['older', 'b', 'a']);
   assert.deepEqual(ids(trees[1]), ['c', 'd']);
-  assert.equal(screen.getAllByText('Title c').length, 1);
+  assert.equal(screen.getAllByText('Title c').length, 2, 'once in Pinned, once in its project');
   fireEvent.click(screen.getByRole('button', { name: 'Load more sessions' }));
   assert.deepEqual(more.mock.calls, [['project-1']]);
 });
@@ -202,7 +205,7 @@ test('an off-page pinned ancestor keeps its own parent and paginated descendants
   assert.deepEqual([...tree.querySelectorAll('[data-session-id]')].map((row) => [
     row.getAttribute('data-session-id'), row.getAttribute('data-parent-session-id'), row.getAttribute('data-fork-depth'),
   ]), [['a', null, '0'], ['b', 'a', '1'], ['c', 'b', '2'], ['newest', null, '0']]);
-  assert.equal(screen.getAllByText('Title b').length, 1);
+  assert.equal(screen.getAllByText('Title b').length, 2, 'once in Pinned, once in its project');
   fireEvent.click(screen.getByRole('button', { name: 'Load more sessions' }));
   assert.deepEqual(more.mock.calls, [['project-1']]);
 });
