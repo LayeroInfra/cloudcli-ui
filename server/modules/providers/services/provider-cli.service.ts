@@ -84,8 +84,8 @@ const CLI_UPDATERS: Partial<Record<LLMProvider, CliUpdater>> = {
     npmPackage: '@openai/codex',
     explainRun: (update, exitCode) => (
       update === CODEX_NPM_INSTALL && exitCode === 0 && !findUserCodexCli()
-        ? 'npm finished, but its codex command is not on the PATH CloudCLI started with, so CloudCLI still runs its bundled Codex. '
-          + 'Add the bin folder of `npm prefix -g` to that PATH and restart CloudCLI.'
+        ? 'npm finished, but its codex command is not on the PATH Layero Workspace started with, so Layero Workspace still runs its bundled Codex. '
+          + 'Add the bin folder of `npm prefix -g` to that PATH and restart Layero Workspace.'
         : null
     ),
   },

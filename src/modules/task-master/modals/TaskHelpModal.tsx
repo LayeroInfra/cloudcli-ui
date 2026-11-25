@@ -76,7 +76,7 @@ export default function TaskHelpModal({ isOpen, onClose, onCreatePrd }: TaskHelp
           {steps.map((step) => (
             <div key={step.index} className={`rounded-lg border p-4 ${step.accent}`}>
               <div className="flex gap-4">
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
                   {step.index}
                 </div>
                 <div>
@@ -117,7 +117,7 @@ export default function TaskHelpModal({ isOpen, onClose, onCreatePrd }: TaskHelp
               href="https://github.com/eyaltoledano/claude-task-master"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
               {t('helpGuide.learnMore.githubButton')}
               <ExternalLink className="h-4 w-4" />

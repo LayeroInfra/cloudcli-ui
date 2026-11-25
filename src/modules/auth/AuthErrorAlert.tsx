@@ -13,10 +13,10 @@ export default function AuthErrorAlert({ errorMessage }: AuthErrorAlertProps) {
   return (
     <div
       role="alert"
-      className="flex items-start gap-2.5 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-destructive"
+      className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 dark:border-red-800/50 dark:bg-red-950/30 dark:text-red-300"
     >
       <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-      <p className="text-sm leading-relaxed">{errorMessage}</p>
+      <p className="text-[13px] leading-relaxed">{errorMessage}</p>
     </div>
   );
 }

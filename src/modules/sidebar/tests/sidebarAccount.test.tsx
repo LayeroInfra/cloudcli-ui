@@ -94,7 +94,7 @@ test('the usage card beside the profile lists the 5h and weekly limits; the prof
   // Voice stays hidden until it is enabled in settings.
   assert.equal(screen.queryByRole('switch', { name: 'quickSettings.voiceEnabled' }), null);
   assert.ok(screen.getByText('language-selector'));
-  assert.ok(screen.getByText('CloudCLI v1.2.3'));
+  assert.ok(screen.getByText('Layero Workspace v1.2.3'));
 
   fireEvent.click(screen.getByRole('button', { name: 'Accounts and agents' }));
   fireEvent.click(screen.getByRole('button', { name: 'Account' }));

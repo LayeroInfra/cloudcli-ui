@@ -26,6 +26,7 @@ export { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/shared/ui
 export { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/shared/ui/Command';
 export { Dialog, DialogTrigger, DialogContent, DialogTitle } from '@/shared/ui/Dialog';
 export { Input } from '@/shared/ui/Input';
+export { LayeroMark, LayeroWorkspaceLockup } from '@/shared/ui/LayeroLogo';
 export { LLMProviderLogo } from '@/shared/ui/LLMProviderLogo';
 export { PillBar, Pill } from '@/shared/ui/PillBar';
 export { ScrollArea } from '@/shared/ui/ScrollArea';

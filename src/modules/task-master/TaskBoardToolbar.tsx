@@ -234,7 +234,7 @@ export default function TaskBoardToolbar({
               {(hasTaskMasterConfigured || totalTaskCount > 0) && (
                 <button
                   onClick={onOpenCreateTask}
-                  className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 font-medium text-white hover:bg-blue-700"
+                  className="flex items-center gap-2 rounded-lg bg-primary px-3 py-2 font-medium text-primary-foreground hover:bg-primary/90"
                   title={t('buttons.addTask')}
                 >
                   <Plus className="h-4 w-4" />

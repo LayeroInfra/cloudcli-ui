@@ -171,7 +171,7 @@
       "title": "Webhook",
       "description": "Çalıştırma olaylarını, açık bir tarayıcı olmasa bile kendi HTTP uç noktana (örneğin n8n, Home Assistant veya bir sohbet aktarıcısı) gönderir.",
       "urlLabel": "Hedef URL",
-      "urlPlaceholder": "https://example.com/hooks/cloudcli",
+      "urlPlaceholder": "https://example.com/hooks/layero",
       "allowHttp": "Şifresiz HTTP'ye izin ver (yalnızca bu bilgisayar veya yerel ağın için)",
       "enabled": "Etkin",
       "save": "Kaydet",
@@ -468,7 +468,7 @@
       "versionUnavailable": "Sürüm okunamadı",
       "updateAvailable": "Güncelleme var: v{{version}}",
       "upToDate": "Güncel",
-      "bundled": "CloudCLI ile birlikte gelir ve onunla birlikte güncellenir.",
+      "bundled": "Layero Workspace ile birlikte gelir ve onunla birlikte güncellenir.",
       "platform": "Barındırma platformu tarafından yönetilir.",
       "updateTo": "v{{version}} sürümüne güncelle",
       "runUpdater": "Güncelleyiciyi çalıştır",
@@ -641,7 +641,7 @@
     },
     "managed": {
       "badge": "Yönetilen",
-      "hint": "CloudCLI tarafından yönetiliyor."
+      "hint": "Layero Workspace tarafından yönetiliyor."
     },
     "help": {
       "title": "Codex MCP Hakkında",
@@ -916,11 +916,6 @@
     "configCwd": "Çalışma dizini",
     "configEnvVars": "Ortam değişkenleri"
   },
-  "mcpTeamCard": {
-    "title": "Ekip MCP Ayarları",
-    "description": "MCP sunucu ayarlarını ekibinizle paylaşın. Herkes otomatik olarak eşitlenir.",
-    "proLink": "CloudCLI Pro ile kullanılabilir"
-  },
   "mcpServersAddErrors": {
     "loadFailedProvider": "{{provider}} MCP sunucuları yüklenemedi",
     "deleteFailed": "MCP sunucusu silinemedi",
@@ -934,17 +929,6 @@
   },
   "about": {
     "tagline": "Açık kaynaklı yapay zekâ kodlama asistanı arayüzü",
-    "starOnGitHub": "GitHub'da yıldız ver",
-    "docs": "Belgeler",
-    "hostedTitle": "CloudCLI Hosted'ı deneyin",
-    "hostedDescription": "Ekip çalışması, paylaşılan MCP ayarları, ortamlar arası ayar eşitleme ve yönetilen altyapı.",
-    "learnMore": "Daha fazla bilgi",
-    "proFeaturesTitle": "CloudCLI Pro Özellikleri",
-    "syncSettingsTitle": "Ayar Eşitleme",
-    "syncSettingsDescription": "Tercihlerinizi, MCP ayarlarınızı ve temanızı tüm ortamlarınızda eşit tutun.",
-    "teamManagementTitle": "Ekip Yönetimi",
-    "teamManagementDescription": "Ekibiniz için birden fazla kullanıcı, rol tabanlı erişim ve paylaşılan projeler.",
-    "licensed": "AGPL-3.0 lisanslıdır",
-    "proCta": "CloudCLI Pro ile kullanılabilir"
+    "licensed": "AGPL-3.0 lisanslıdır"
   }
 }

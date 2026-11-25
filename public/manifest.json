@@ -1,11 +1,11 @@
 {
-  "name": "CloudCLI UI",
-  "short_name": "CloudCLI UI",
-  "description": "CloudCLI UI web application",
+  "name": "Layero Workspace",
+  "short_name": "Layero",
+  "description": "Remote workspace for AI coding agents on Layero",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "background_color": "#fcfcfa",
+  "theme_color": "#fcfcfa",
   "orientation": "portrait-primary",
   "scope": "/",
   "icons": [

@@ -2,6 +2,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 import type { Project, ProjectSession, SlashCommand } from '@/shared/types';
+import { PRODUCT_NAME } from '@/shared/constants';
 
 //----------------- DEPLOYMENT MODE ------------
 
@@ -214,7 +215,7 @@ export const playChatCompletionSound = (options = {}): Promise<void> => playNoti
 //----------------- DOCUMENT TITLE ------------
 
 /** Browser tab title shown when no project or session is selected. Private to the title helpers. */
-const DEFAULT_PAGE_TITLE = 'CloudCLI UI';
+const DEFAULT_PAGE_TITLE = PRODUCT_NAME;
 
 /**
  * Resolves the human-readable label for a session: the persisted `summary` (the custom
