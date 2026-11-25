@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, type Dispatch, type SetStateAction, useS
 
 import { ChatInterface } from '@/modules/chat';
 import { FileTree } from '@/modules/file-tree';
-import { StandaloneShell } from '@/modules/standalone-shell';
 import { GitPanel } from '@/modules/git-panel';
 import { PluginTabContent } from '@/modules/plugins';
 import { BrowserUsePanel, useBrowserUseEnabled } from '@/modules/browser-use';
@@ -12,11 +11,18 @@ import type { AppTab, DirectoryRevealRequest, Project, ProjectSession, SessionEs
 import { useUiPreferences } from '@/shared/context/UiPreferencesContext';
 import { useFileOpenResolver } from '@/modules/project-workspace/hooks/useFileOpenResolver';
 import { EditorSidebar, useEditorSidebar } from '@/modules/code-editor';
+import { SitePreviewPanel } from '@/modules/site-preview';
+import { useProcessingSessions } from '@/shared/context/SessionProtectionContext';
+import BackgroundProcessesPanel, { countRunningProcesses } from '@/modules/project-workspace/BackgroundProcessesPanel';
+import TerminalDock from '@/modules/project-workspace/TerminalDock';
+import { useWorkspacePanels } from '@/modules/project-workspace/hooks/useWorkspacePanels';
 import WorkspaceHeader from '@/modules/project-workspace/WorkspaceHeader';
 import WorkspaceStateView from '@/modules/project-workspace/WorkspaceStateView';
 import WorkspaceErrorBoundary from '@/modules/project-workspace/WorkspaceErrorBoundary';
 
 type WorkspaceMainProps = {
+  /** Every loaded project, for naming sessions in the background-processes drawer. */
+  projects: Project[];
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
   activeTab: AppTab;
@@ -39,8 +45,13 @@ type WorkspaceMainProps = {
   onRenameSession: (sessionId: string, summary: string) => Promise<boolean>;
 };
 
-/** Rendered by ProjectMainRegion to show the selected project's active tab: chat, files, shell, git, tasks, browser or a plugin. */
+/**
+ * Rendered by ProjectMainRegion: the workspace header, the selected project's active tab
+ * (chat, files, git, tasks, browser-use or a plugin) with the terminal dock under it, the
+ * site-preview browser beside it and the background-processes drawer over it.
+ */
 function WorkspaceMain({
+  projects,
   selectedProject,
   selectedSession,
   activeTab,
@@ -66,6 +77,31 @@ function WorkspaceMain({
   const browserUseEnabled = useBrowserUseEnabled();
 
   useTaskMasterProjectSync(selectedProject);
+  const { openPanels, togglePanel, setPanelOpen } = useWorkspacePanels();
+  const processingSessions = useProcessingSessions();
+  const runningProcessCount = countRunningProcesses(processingSessions);
+  const selectedSessionId = selectedSession?.id ?? null;
+  // Flips when the selected session starts or finishes a turn, so the header's
+  // context meter refetches after each reply instead of polling.
+  const usageRefreshKey = `${selectedSessionId ? processingSessions.has(selectedSessionId) : false}:${externalMessageUpdate}`;
+
+  const openSession = useCallback((sessionId: string) => {
+    setActiveTab('chat');
+    onNavigateToSession(sessionId);
+  }, [onNavigateToSession, setActiveTab]);
+
+  const closeBackgroundPanel = useCallback(() => setPanelOpen('background', false), [setPanelOpen]);
+  const closeTerminal = useCallback(() => setPanelOpen('terminal', false), [setPanelOpen]);
+  const setBrowserOpen = useCallback((open: boolean) => setPanelOpen('browser', open), [setPanelOpen]);
+
+  // The terminal used to be a tab; links and the command palette that still
+  // ask for it open the dock over the chat instead.
+  useEffect(() => {
+    if (activeTab === 'shell') {
+      setPanelOpen('terminal', true);
+      setActiveTab('chat');
+    }
+  }, [activeTab, setActiveTab, setPanelOpen]);
   // The folder an in-chat `path/` reference asked to reveal. Held as an object
   // so that re-clicking the same folder is a new request the tree acts on.
   const [revealDirectory, setRevealDirectory] = useState<DirectoryRevealRequest | null>(null);
@@ -142,7 +178,7 @@ function WorkspaceMain({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       <WorkspaceHeader
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -153,9 +189,17 @@ function WorkspaceMain({
         isMobile={isMobile}
         onMenuClick={onMenuClick}
         onRenameSession={onRenameSession}
+        onOpenSession={openSession}
+        onShowSettings={onShowSettings}
+        usageRefreshKey={usageRefreshKey}
+        background={{ open: openPanels.background, onToggle: () => togglePanel('background'), runningCount: runningProcessCount }}
+        terminal={{ open: openPanels.terminal, onToggle: () => togglePanel('terminal') }}
+        browser={{ open: openPanels.browser, onToggle: () => togglePanel('browser') }}
       />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-0 flex-1 overflow-hidden">
         <div className={`flex min-h-0 min-w-[200px] flex-col overflow-hidden ${editorExpanded ? 'hidden' : ''} flex-1`}>
           <div className={`h-full ${activeTab === 'chat' ? 'block' : 'hidden'}`}>
             <WorkspaceErrorBoundary showDetails>
@@ -185,17 +229,6 @@ function WorkspaceMain({
                 selectedProject={selectedProject}
                 onFileOpen={handleFileOpen}
                 revealDirectory={revealDirectory}
-              />
-            </div>
-          )}
-
-          {activeTab === 'shell' && (
-            <div className="h-full w-full overflow-hidden">
-              <StandaloneShell
-                project={selectedProject}
-                session={selectedSession}
-                showHeader={false}
-                isActive={activeTab === 'shell'}
               />
             </div>
           )}
@@ -245,7 +278,27 @@ function WorkspaceMain({
           projectPath={selectedProject.path}
           fillSpace={activeTab === 'files'}
         />
+        </div>
+
+        <TerminalDock
+          open={openPanels.terminal}
+          onClose={closeTerminal}
+          project={selectedProject}
+          session={selectedSession}
+        />
+        </div>
+
+        {!isMobile && <SitePreviewPanel open={openPanels.browser} onOpenChange={setBrowserOpen} />}
       </div>
+
+      <BackgroundProcessesPanel
+        open={openPanels.background}
+        onClose={closeBackgroundPanel}
+        projects={projects}
+        activeSessionId={selectedSessionId}
+        sendMessage={sendMessage}
+        onOpenSession={openSession}
+      />
     </div>
   );
 }

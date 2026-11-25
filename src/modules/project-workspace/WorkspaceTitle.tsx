@@ -5,6 +5,7 @@ import type { AppTab, Project, ProjectSession } from '@/shared/types';
 import { usePlugins } from '@/modules/plugins';
 import { getSessionTitle } from '@/shared/utils';
 import { useSessionTitleRename } from '@/modules/project-workspace/hooks/useSessionTitleRename';
+import WorkspaceSessionLineage from '@/modules/project-workspace/WorkspaceSessionLineage';
 
 type WorkspaceTitleProps = {
   activeTab: AppTab;
@@ -13,6 +14,8 @@ type WorkspaceTitleProps = {
   shouldShowTasksTab: boolean;
   /** Persists a new title for a session; resolves false when the backend refuses it. */
   onRenameSession: (sessionId: string, summary: string) => Promise<boolean>;
+  /** Opens another session; used by the parent/fork lineage under the title. */
+  onOpenSession: (sessionId: string) => void;
 };
 
 function getTabTitle(activeTab: AppTab, shouldShowTasksTab: boolean, t: (key: string) => string, pluginDisplayName?: string) {
@@ -50,6 +53,7 @@ export default function WorkspaceTitle({
   selectedSession,
   shouldShowTasksTab,
   onRenameSession,
+  onOpenSession,
 }: WorkspaceTitleProps) {
   const { t } = useTranslation();
   const { plugins } = usePlugins();
@@ -78,7 +82,7 @@ export default function WorkspaceTitle({
   });
 
   return (
-    <div className="scrollbar-hide flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
+    <div className="scrollbar-hide flex min-w-0 flex-1 items-center gap-2 ">
       {showSessionIcon && (
         <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center">
           <LLMProviderLogo provider={selectedSession?.__provider} className="h-4 w-4" />
@@ -88,6 +92,11 @@ export default function WorkspaceTitle({
       <div className="min-w-0 flex-1">
         {activeTab === 'chat' && selectedSession ? (
           <div className="min-w-0">
+            <WorkspaceSessionLineage
+              selectedProject={selectedProject}
+              selectedSession={selectedSession}
+              onOpenSession={onOpenSession}
+            />
             {isRenaming ? (
               <input
                 ref={renameInputRef}
@@ -113,12 +122,19 @@ export default function WorkspaceTitle({
                 {sessionTitle}
               </h2>
             )}
-            <div className="truncate text-[11px] leading-tight text-muted-foreground">{selectedProject.displayName}</div>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span className="flex-shrink-0 truncate text-[11px] leading-tight text-muted-foreground">{selectedProject.displayName}</span>
+              <WorkspaceSessionLineage
+                selectedProject={selectedProject}
+                selectedSession={selectedSession}
+                onOpenSession={onOpenSession}
+              />
+            </div>
           </div>
         ) : showChatNewSession ? (
           <div className="min-w-0">
-            <h2 className="truncate text-base font-semibold leading-tight text-foreground">{t('mainContent.newSession')}</h2>
-            <div className="truncate text-xs leading-tight text-muted-foreground">{selectedProject.displayName}</div>
+            <h2 className="truncate text-sm font-semibold leading-tight text-foreground">{t('mainContent.newSession')}</h2>
+            <div className="truncate text-[11px] leading-tight text-muted-foreground">{selectedProject.displayName}</div>
           </div>
         ) : (
           <div className="min-w-0">

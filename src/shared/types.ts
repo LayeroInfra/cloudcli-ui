@@ -1433,6 +1433,10 @@ export type ProviderAuthStatus = {
   subscriptionOverride?: ProviderAuthSubscriptionOverride;
   /** Version the provider's CLI printed for `--version`; null when unknown, absent until the server has answered. */
   installedVersion?: string | null;
+  /** Subscription plan of a Claude login (`pro`, `max`, …); absent when the server does not know one. Shown by the workspace header. */
+  plan?: string;
+  /** Organization of a Claude login; absent when the server does not know one. Shown in the workspace account menu. */
+  organization?: string;
 };
 
 /** The authentication state of every CLI provider at once, keyed by LLMProvider, so onboarding and settings can render each provider's connected, loading and error state from one object returned by useProviderAuthStatus. */

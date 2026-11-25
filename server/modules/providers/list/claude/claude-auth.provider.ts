@@ -13,6 +13,13 @@ type ClaudeCredentialsStatus = {
   method: string | null;
   error?: string;
   subscriptionOverride?: ProviderAuthSubscriptionOverride;
+  plan?: string;
+  organization?: string;
+};
+
+type ClaudeAccountProfile = {
+  email: string | null;
+  organization: string | null;
 };
 
 /**
@@ -72,7 +79,27 @@ export class ClaudeProviderAuth implements IProviderAuth {
       method: credentials.method,
       error: credentials.authenticated ? undefined : credentials.error || 'Not authenticated',
       ...(credentials.subscriptionOverride ? { subscriptionOverride: credentials.subscriptionOverride } : {}),
+      ...(credentials.authenticated && credentials.plan ? { plan: credentials.plan } : {}),
+      ...(credentials.authenticated && credentials.organization ? { organization: credentials.organization } : {}),
     };
+  }
+
+  /**
+   * Reads the account Claude Code recorded at login from `~/.claude.json`.
+   * `.credentials.json` holds only tokens on current CLI versions, so this is
+   * where the signed-in email actually lives. Any failure reads as unknown.
+   */
+  private async readAccountProfile(): Promise<ClaudeAccountProfile> {
+    try {
+      const content = await readFile(path.join(os.homedir(), '.claude.json'), 'utf8');
+      const account = readObjectRecord(readObjectRecord(JSON.parse(content))?.oauthAccount);
+      return {
+        email: readOptionalString(account?.emailAddress) ?? null,
+        organization: readOptionalString(account?.organizationName) ?? null,
+      };
+    } catch {
+      return { email: null, organization: null };
+    }
   }
 
   /**
@@ -168,12 +195,18 @@ export class ClaudeProviderAuth implements IProviderAuth {
 
       if (accessToken) {
         const expiresAt = typeof oauth?.expiresAt === 'number' ? oauth.expiresAt : undefined;
-        const email = readOptionalString(creds.email) ?? readOptionalString(creds.user) ?? null;
+        const profile = await this.readAccountProfile();
+        const email = readOptionalString(creds.email) ?? readOptionalString(creds.user) ?? profile.email;
+        const accountDetails = {
+          ...(readOptionalString(oauth?.subscriptionType) ? { plan: readOptionalString(oauth?.subscriptionType) } : {}),
+          ...(profile.organization ? { organization: profile.organization } : {}),
+        };
         if (!expiresAt || Date.now() < expiresAt) {
           return {
             authenticated: true,
             email,
             method: 'credentials_file',
+            ...accountDetails,
           };
         }
 
@@ -192,6 +225,7 @@ export class ClaudeProviderAuth implements IProviderAuth {
             authenticated: true,
             email,
             method: 'credentials_file',
+            ...accountDetails,
           };
         }
 

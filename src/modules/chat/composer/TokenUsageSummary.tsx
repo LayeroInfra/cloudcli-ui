@@ -2,30 +2,11 @@ import { memo } from 'react';
 import { ActivityIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import { formatTokenCount } from '@/shared/utils';
+
 type TokenUsageSummaryProps = {
   usage: Record<string, unknown> | null;
   onClick?: () => void;
-};
-
-const formatTokenCount = (value: number) => {
-  if (!Number.isFinite(value) || value <= 0) {
-    return '0';
-  }
-
-  // Thresholds sit where rounding would carry into the next unit, so 9,960 reads "10K", not "10.0K".
-  if (value >= 999_500) {
-    return `${(value / 1_000_000).toFixed(value >= 9_950_000 ? 0 : 1)}M`;
-  }
-
-  if (value >= 9_950) {
-    return `${Math.round(value / 1_000)}K`;
-  }
-
-  if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(1)}K`;
-  }
-
-  return value.toLocaleString();
 };
 
 const readUsageNumber = (value: unknown) => {

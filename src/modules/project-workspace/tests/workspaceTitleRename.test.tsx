@@ -57,6 +57,7 @@ const renderTitle = (overrides: { selectedSession?: ProjectSession | null; activ
     selectedProject={project}
     selectedSession={overrides.selectedSession === undefined ? session : overrides.selectedSession}
     shouldShowTasksTab={false}
+    onOpenSession={() => undefined}
     onRenameSession={onRenameSession}
   />,
 );

@@ -270,3 +270,33 @@ export const getQuickSettingsTabId = (tab: QuickSettingsTab): string => `quick-s
 
 /** DOM id of the tabpanel a quick settings tab controls; pairs with `getQuickSettingsTabId`. */
 export const getQuickSettingsTabPanelId = (tab: QuickSettingsTab): string => `quick-settings-tabpanel-${tab}`;
+
+// ---------------------------
+
+//----------------- TOKEN COUNTS ------------
+
+/**
+ * Formats a token count compactly ("950", "1.2K", "48K", "1.5M"). Thresholds
+ * sit where rounding would carry into the next unit, so 9,960 reads "10K",
+ * not "10.0K". Non-finite and non-positive values read "0". Used by the chat
+ * composer's usage button and the workspace header's context meter.
+ */
+export const formatTokenCount = (value: number): string => {
+  if (!Number.isFinite(value) || value <= 0) {
+    return '0';
+  }
+
+  if (value >= 999_500) {
+    return `${(value / 1_000_000).toFixed(value >= 9_950_000 ? 0 : 1)}M`;
+  }
+
+  if (value >= 9_950) {
+    return `${Math.round(value / 1_000)}K`;
+  }
+
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(1)}K`;
+  }
+
+  return value.toLocaleString();
+};
