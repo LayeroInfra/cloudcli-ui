@@ -59,8 +59,8 @@ const contentProps = (_view: 'projects' = 'projects'): ComponentProps<typeof Sid
   isPWA: false, isMobile: false, isLoading: false, projects: PROJECTS,
   searchFilter: '', onSearchFilterChange: noop, onClearSearchFilter: noop,
   onRefresh: noop, isRefreshing: false, onCreateProject: noop,
-  onCollapseSidebar: noop, updateAvailable: false, restartRequired: false, releaseInfo: null,
-  latestVersion: null, currentVersion: '1.37.4', onShowVersionModal: noop, onShowSettings: noop,
+  onCollapseSidebar: noop, restartRequired: false,
+  currentVersion: '1.37.4', onShowSettings: noop,
   projectListProps: listProps, t,
 });
 const response = (sessions: RecentConversationListItem[]) => ({ ok: true, json: async () => ({ data: { sessions } }) });

@@ -1,1 +1,1 @@
-export { default as StandaloneShell } from '@/modules/standalone-shell/StandaloneShell';
+export { default as StandaloneShell } from '@/modules/standalone-shell/LazyStandaloneShell';

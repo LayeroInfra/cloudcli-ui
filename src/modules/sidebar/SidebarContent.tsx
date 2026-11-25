@@ -3,7 +3,7 @@ import type { TFunction } from 'i18next';
 import { SquarePen } from 'lucide-react';
 
 import { ScrollArea } from '@/shared/ui';
-import type { Project, ReleaseInfo, SidebarProjectListProps, SettingsMainTab } from '@/shared/types';
+import type { Project, SidebarProjectListProps, SettingsMainTab } from '@/shared/types';
 import SidebarFooter from '@/modules/sidebar/SidebarFooter';
 import SidebarHeader from '@/modules/sidebar/SidebarHeader';
 import SidebarProjectList from '@/modules/sidebar/SidebarProjectList';
@@ -22,12 +22,8 @@ type SidebarContentProps = {
   isRefreshing: boolean;
   onCreateProject: () => void;
   onCollapseSidebar: () => void;
-  updateAvailable: boolean;
   restartRequired: boolean;
-  releaseInfo: ReleaseInfo | null;
-  latestVersion: string | null;
   currentVersion: string;
-  onShowVersionModal: () => void;
   onShowSettings: (tab?: SettingsMainTab) => void;
   projectListProps: SidebarProjectListProps;
   t: TFunction;
@@ -64,12 +60,8 @@ export default function SidebarContent({
   isRefreshing,
   onCreateProject,
   onCollapseSidebar,
-  updateAvailable,
   restartRequired,
-  releaseInfo,
-  latestVersion,
   currentVersion,
-  onShowVersionModal,
   onShowSettings,
   projectListProps,
   t,
@@ -125,12 +117,8 @@ export default function SidebarContent({
 
       {!isRenamingOnMobile && (
         <SidebarFooter
-          updateAvailable={updateAvailable}
           restartRequired={restartRequired}
-          releaseInfo={releaseInfo}
-          latestVersion={latestVersion}
           currentVersion={currentVersion}
-          onShowVersionModal={onShowVersionModal}
           onShowSettings={onShowSettings}
           provider={projectListProps.selectedSession?.__provider ?? 'claude'}
           t={t}

@@ -127,7 +127,7 @@ function LimitRing({ window }: { window: ClaudeRateLimitWindow | undefined }) {
   const circumference = 2 * Math.PI * radius;
   const used = usedPercent(window);
   return (
-    <svg viewBox="0 0 18 18" className="h-[18px] w-[18px] -rotate-90" aria-hidden="true">
+    <svg viewBox="0 0 18 18" className="h-5 w-5 -rotate-90" aria-hidden="true">
       <circle cx="9" cy="9" r={radius} fill="none" strokeWidth="2.5" className="stroke-muted" />
       {used !== null && (
         <circle
@@ -161,10 +161,10 @@ const MENU_ROW = 'flex w-full items-center gap-2.5 rounded-md px-3 py-1.5 text-l
 
 /**
  * Rendered by SidebarFooter in the bottom-left corner, like the profile menu
- * of a web platform: the account (email, plan) with one ring for the weekly
- * plan limit. The ring's tooltip gives the figure; opening the menu shows the
- * 5-hour and weekly limits, the theme switch, the language, the chat display
- * and input preferences, settings and the edition's source link.
+ * of a web platform: a profile button (email, plan) whose menu holds the
+ * theme switch, the language, the chat display and input preferences,
+ * settings and the edition's source link; and, right of it, one ring for the
+ * weekly plan limit whose hover card lists the 5-hour and weekly limits.
  */
 export default function SidebarAccount({ provider, currentVersion, isCompact, onShowSettings, t }: SidebarAccountProps) {
   const { t: tSettings } = useTranslation('settings');
@@ -202,48 +202,68 @@ export default function SidebarAccount({ provider, currentVersion, isCompact, on
   // Voice stays hidden until it is switched on in settings, as in the old drawer.
   const preferenceRows = PREFERENCE_ROWS.filter((row) => row.key !== 'voiceEnabled' || preferences.voiceEnabled);
 
+  // The 5-hour and weekly windows, as the usage card lists them.
+  const limitsList = windows.length === 0 ? (
+    limitsLoading ? (
+      [0, 1].map((row) => <span key={row} className="block h-6 animate-pulse rounded bg-muted" aria-hidden="true" />)
+    ) : (
+      <div className="text-xs text-muted-foreground">
+        {t('account.limits.empty', { defaultValue: 'No data from Claude yet.' })}
+      </div>
+    )
+  ) : windows.map((window) => {
+    const resetIn = formatResetIn(window.resetsAt, now);
+    const used = usedPercent(window);
+    return (
+      <div key={window.type} className="space-y-1 text-xs">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-foreground">{windowLabel(window.type, t)}</span>
+          <span className="tabular-nums text-muted-foreground">
+            {window.status === 'rejected'
+              ? t('account.limits.reached', { defaultValue: 'Limit reached' })
+              : used === null ? '—' : `${Math.round(used)}%`}
+            {resetIn && ` · ${t('account.limits.resetsIn', { time: resetIn, defaultValue: 'Resets in {{time}}' })}`}
+          </span>
+        </div>
+        <LimitBar window={window} />
+      </div>
+    );
+  });
+
   return (
-    <div className={cn('w-full', isCompact ? 'px-3 py-2' : 'px-2 py-1.5')}>
+    <div className={cn('flex w-full items-center gap-1', isCompact ? 'px-3 py-2' : 'px-2 py-2')}>
       <AnchoredPopover
         side="top"
         align="left"
         className="max-h-[calc(100vh-5rem)] w-[min(20rem,calc(100vw-1.5rem))] overflow-y-auto"
-        rootClassName="w-full"
+        rootClassName="min-w-0 flex-1"
         trigger={({ open, toggle }) => (
+          // Clicking the profile opens its menu; the usage ring beside it is separate.
           <button
             type="button"
             onClick={toggle}
             aria-expanded={open}
             aria-label={t('account.label', { defaultValue: 'Account' })}
             className={cn(
-              'flex w-full min-w-0 items-center gap-2 rounded-lg border border-transparent px-2 text-left transition-colors hover:bg-accent/60',
-              isCompact ? 'min-h-11 py-1.5' : 'py-1.5',
+              'flex w-full min-w-0 items-center gap-2.5 rounded-lg border border-transparent px-2.5 text-left transition-colors hover:bg-accent/60',
+              isCompact ? 'min-h-12 py-2' : 'min-h-11 py-2',
               open && 'border-border bg-accent/60',
             )}
           >
-            <LLMProviderLogo provider={provider} className="h-4 w-4 flex-shrink-0" />
+            <LLMProviderLogo provider={provider} className="h-6 w-6 flex-shrink-0" />
             {status.loading ? (
-              <span className="block h-3 w-40 animate-pulse rounded bg-muted" aria-hidden="true" />
+              <span className="block h-3.5 w-40 animate-pulse rounded bg-muted" aria-hidden="true" />
             ) : (
-              <span className={cn('flex min-w-0 flex-1 items-center gap-1.5 text-xs', !status.authenticated && 'text-destructive')}>
+              <span className={cn('flex min-w-0 flex-1 items-center gap-2 text-sm', !status.authenticated && 'text-destructive')}>
                 <span className="min-w-0 truncate font-medium">{account}</span>
                 {plan && (
-                  <span className="flex-shrink-0 rounded bg-primary/10 px-1 text-[9px] font-semibold uppercase leading-4 tracking-wide text-primary">
+                  <span className="flex-shrink-0 rounded bg-primary/10 px-1.5 text-[10px] font-semibold uppercase leading-5 tracking-wide text-primary">
                     {plan}
                   </span>
                 )}
               </span>
             )}
-            {hasPlanLimits && (
-              limitsLoading && !ringWindow ? (
-                <span className="h-[18px] w-[18px] flex-shrink-0 animate-pulse rounded-full bg-muted" aria-hidden="true" />
-              ) : (
-                <span className="flex flex-shrink-0" title={ringTitle} aria-label={ringTitle} data-testid="account-limit-ring">
-                  <LimitRing window={ringWindow} />
-                </span>
-              )
-            )}
-            <ChevronUp className={cn('h-3.5 w-3.5 flex-shrink-0 text-muted-foreground transition-transform', !open && 'rotate-180')} />
+            <ChevronUp className={cn('h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform', !open && 'rotate-180')} />
           </button>
         )}
       >
@@ -279,41 +299,6 @@ export default function SidebarAccount({ provider, currentVersion, isCompact, on
               </div>
             )}
             {!status.authenticated && status.error && <div className="px-3 pb-2 text-xs text-destructive">{status.error}</div>}
-
-            {/* Plan limits */}
-            {hasPlanLimits && (
-              <>
-                <div className="my-1 h-px bg-border" />
-                <div className="space-y-2.5 px-3 py-2" data-testid="account-plan-limits">
-                  {windows.length === 0 ? (
-                    limitsLoading ? (
-                      [0, 1].map((row) => <span key={row} className="block h-6 animate-pulse rounded bg-muted" aria-hidden="true" />)
-                    ) : (
-                      <div className="text-xs text-muted-foreground">
-                        {t('account.limits.empty', { defaultValue: 'No data from Claude yet.' })}
-                      </div>
-                    )
-                  ) : windows.map((window) => {
-                    const resetIn = formatResetIn(window.resetsAt, now);
-                    const used = usedPercent(window);
-                    return (
-                      <div key={window.type} className="space-y-1 text-xs">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="text-foreground">{windowLabel(window.type, t)}</span>
-                          <span className="tabular-nums text-muted-foreground">
-                            {window.status === 'rejected'
-                              ? t('account.limits.reached', { defaultValue: 'Limit reached' })
-                              : used === null ? '—' : `${Math.round(used)}%`}
-                            {resetIn && ` · ${t('account.limits.resetsIn', { time: resetIn, defaultValue: 'Resets in {{time}}' })}`}
-                          </span>
-                        </div>
-                        <LimitBar window={window} />
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
 
             {/* Theme */}
             <div className="my-1 h-px bg-border" />
@@ -385,6 +370,35 @@ export default function SidebarAccount({ provider, currentVersion, isCompact, on
           </div>
         )}
       </AnchoredPopover>
+
+      {/* Plan usage, right of the profile: hovering (or focusing) it shows the
+          5-hour and weekly limits; it opens nothing. */}
+      {hasPlanLimits && (
+        <div className="group/usage relative flex-shrink-0">
+          {limitsLoading && !ringWindow ? (
+            <span className="block h-9 w-9 p-2" aria-hidden="true">
+              <span className="block h-5 w-5 animate-pulse rounded-full bg-muted" />
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              title={ringTitle}
+              aria-label={ringTitle}
+              data-testid="account-limit-ring"
+            >
+              <LimitRing window={ringWindow} />
+            </button>
+          )}
+          <div
+            role="tooltip"
+            className="pointer-events-none invisible absolute bottom-full right-0 z-50 mb-2 w-64 rounded-lg border border-border bg-popover p-3 text-popover-foreground opacity-0 shadow-lg transition-opacity group-focus-within/usage:visible group-focus-within/usage:opacity-100 group-hover/usage:visible group-hover/usage:opacity-100"
+          >
+            <div className="mb-2 text-xs font-semibold text-foreground">{t('account.limits.title', { defaultValue: 'Plan usage limits' })}</div>
+            <div className="space-y-2.5" data-testid="account-plan-limits">{limitsList}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

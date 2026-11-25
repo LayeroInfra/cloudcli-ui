@@ -1,20 +1,22 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { scan } from 'react-scan'
 
 import App from '@/App'
 import '@/index.css'
 import 'katex/dist/katex.min.css'
 
-// Initialize i18n
-import '@/modules/i18n'
+// Initialize i18n; the saved language's translations load before first render.
+import { i18nReady } from '@/modules/i18n'
 
 // React Scan is a render-diagnostics overlay, and an expensive one: measured on
 // this app it roughly halves the dev frame rate, adds ~14 MB of heap and injects
 // a few thousand DOM nodes of its own. It is worth all of that while hunting a
 // render bug and worth none of it the rest of the time, so it is opt-in —
 // `localStorage.setItem('react-scan', 'on')` and reload.
-scan({ enabled: import.meta.env.DEV && localStorage.getItem('react-scan') === 'on' })
+// Imported only in development, so the production bundle does not carry it.
+if (import.meta.env.DEV && localStorage.getItem('react-scan') === 'on') {
+  void import('react-scan').then(({ scan }) => scan({ enabled: true }))
+}
 
 // Register service worker for PWA + Web Push support
 if ('serviceWorker' in navigator) {
@@ -28,8 +30,11 @@ if (!rootElement) {
   throw new Error('Unable to mount the app: #root is missing from the document')
 }
 
-ReactDOM.createRoot(rootElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-)
+// i18nReady never rejects: a failed translation fetch still renders, in English.
+void i18nReady.then(() => {
+  ReactDOM.createRoot(rootElement).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  )
+})
