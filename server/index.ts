@@ -5,6 +5,7 @@ import fs, { promises as fsPromises } from 'fs';
 import path from 'path';
 import os from 'os';
 import http from 'http';
+import zlib from 'zlib';
 
 import express, { type NextFunction, type Request, type Response } from 'express';
 import cors from 'cors';
@@ -28,6 +29,7 @@ import {
     validateApiKey,
 } from './modules/auth/index.js';
 import { taskmasterRoutes } from './modules/taskmaster/index.js';
+import { workspaceBuildsRoutes } from './modules/workspace-builds/index.js';
 import { commandsRoutes } from './modules/commands/index.js';
 import { settingsRoutes } from './modules/settings/index.js';
 import { createSystemModule } from './modules/system/index.js';
@@ -61,6 +63,61 @@ const __dirname = getModuleDirectory(import.meta.url);
 // The server source runs from /server, while the compiled output runs from /dist-server/server.
 // Resolving the app root once keeps every repo-level lookup below aligned across both layouts.
 const APP_ROOT = findApplicationRoot(__dirname);
+
+/** Text assets worth compressing; images and fonts are already compressed. */
+const COMPRESSIBLE_ASSET = /\.(?:js|mjs|css|svg|json|map)$/;
+
+/**
+ * Serves `dist/assets/*` brotli- or gzip-compressed when the browser accepts
+ * it. Asset names carry a content hash, so each file is compressed once
+ * (asynchronously, off the event loop) and kept in memory; anything else, or
+ * a client that accepts neither encoding, falls through to express.static.
+ */
+function createCompressedAssetMiddleware(distDir: string) {
+  const assetsDir = path.join(distDir, 'assets');
+  const cache = new Map<string, Promise<Buffer | null>>();
+
+  const compress = (filePath: string, encoding: 'br' | 'gzip'): Promise<Buffer | null> => {
+    const key = `${encoding}:${filePath}`;
+    let pending = cache.get(key);
+    if (!pending) {
+      pending = fsPromises.readFile(filePath).then((raw) => new Promise<Buffer | null>((resolve) => {
+        const done = (error: Error | null, result: Buffer) => resolve(error ? null : result);
+        if (encoding === 'br') {
+          zlib.brotliCompress(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 6 } }, done);
+        } else {
+          zlib.gzip(raw, { level: 6 }, done);
+        }
+      })).catch(() => null);
+      cache.set(key, pending);
+    }
+    return pending;
+  };
+
+  return (req: Request, res: Response, next: NextFunction) => {
+    if ((req.method !== 'GET' && req.method !== 'HEAD') || !req.path.startsWith('/assets/') || !COMPRESSIBLE_ASSET.test(req.path)) {
+      return next();
+    }
+    const accepted = String(req.headers['accept-encoding'] ?? '');
+    const encoding = /\bbr\b/.test(accepted) ? 'br' : /\bgzip\b/.test(accepted) ? 'gzip' : null;
+    const filePath = path.normalize(path.join(distDir, req.path));
+    if (!encoding || !filePath.startsWith(assetsDir + path.sep)) {
+      return next();
+    }
+    compress(filePath, encoding).then((body) => {
+      if (!body) {
+        cache.delete(`${encoding}:${filePath}`);
+        return next();
+      }
+      res.type(path.extname(filePath));
+      res.setHeader('Content-Encoding', encoding);
+      res.setHeader('Vary', 'Accept-Encoding');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Content-Length', String(body.length));
+      res.end(req.method === 'HEAD' ? undefined : body);
+    }, next);
+  };
+}
 const installMode = fs.existsSync(path.join(APP_ROOT, '.git')) ? 'git' : 'npm';
 // Version of the code that is actually running, captured once at process
 // startup. This intentionally does NOT re-read package.json per request: after
@@ -209,6 +266,8 @@ app.use('/api/browser-use', authenticateToken, parseAuthenticatedBody, browserUs
 // Unified provider MCP routes (protected)
 app.use('/api/providers', authenticateToken, parseAuthenticatedBody, providerRoutes);
 app.use('/api/scheduled-messages', authenticateToken, parseAuthenticatedBody, scheduledMessagesRoutes);
+// The signed-in user's own Woodpecker builds; Woodpecker itself stays on loopback.
+app.use('/api/workspace/builds', authenticateToken, parseAuthenticatedBody, workspaceBuildsRoutes);
 
 // Agent API Routes (uses API key authentication)
 app.use('/api/agent', parsePublicBody, agentRoutes);
@@ -217,6 +276,10 @@ app.use('/api/voice', authenticateToken, parseAuthenticatedBody, voiceRoutes);
 
 // Serve public files (like api-docs.html)
 app.use(express.static(path.join(APP_ROOT, 'public')));
+
+// Compressed hashed assets: the bundles are ~5 MB raw and were sent
+// uncompressed, which dominated a cold page load over the SSH tunnel.
+app.use(createCompressedAssetMiddleware(path.join(APP_ROOT, 'dist')));
 
 // Static files served after API routes
 // Add cache control: HTML files should not be cached, but assets can be cached

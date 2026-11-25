@@ -4,7 +4,7 @@ import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, test, vi } from 'vitest';
 
 import '@/modules/i18n';
-import type { AppTab, Project } from '@/shared/types';
+import type { Project } from '@/shared/types';
 
 /**
  * Issue #582: a dropped chat socket changed nothing on screen, so the user kept
@@ -74,19 +74,17 @@ const PROJECT: Project = {
   sessionMeta: { hasMore: false, total: 0 },
 };
 
-const header = (activeTab: AppTab) => (
+const header = () => (
   <WebSocketProvider>
     <WorkspaceHeader
-      activeTab={activeTab}
-      setActiveTab={() => undefined}
       selectedProject={PROJECT}
       selectedSession={null}
-      shouldShowTasksTab={false}
-      shouldShowBrowserTab={false}
       isMobile={false}
       onMenuClick={() => undefined}
       onOpenSession={() => undefined}
       background={{ open: false, onToggle: () => undefined, runningCount: 0 }}
+      builds={{ open: false, onToggle: () => undefined, activeCount: 0 }}
+      files={{ open: false, onToggle: () => undefined }}
       terminal={{ open: false, onToggle: () => undefined }}
       browser={{ open: false, onToggle: () => undefined }}
       onRenameSession={async () => true}
@@ -123,7 +121,7 @@ afterEach(() => {
 });
 
 test('the header shows nothing during the first handshake or while connected', () => {
-  render(header('chat'));
+  render(header());
   assert.equal(isIndicatorShown(), false, 'no warning while the first handshake is in flight');
 
   act(() => latestSocket().serverOpens());
@@ -134,16 +132,16 @@ test('the header shows nothing during the first handshake or while connected', (
 });
 
 test('the header says it is reconnecting while the chat socket is down, and clears once it is back', () => {
-  const view = render(header('chat'));
+  const view = render(header());
   act(() => latestSocket().serverOpens());
 
   act(() => latestSocket().serverDrops());
   assert.equal(isIndicatorShown(), true, 'a dropped socket is shown');
   assert.equal(liveRegionText(), 'Chat connection lost. Reconnecting...', 'and announced, naming the chat connection');
 
-  // Still down while the retry handshakes, and on another tab too.
+  // Still down while the retry handshakes, and across a re-render.
   act(() => { vi.advanceTimersByTime(3000); });
-  view.rerender(header('files'));
+  view.rerender(header());
   assert.equal(isIndicatorShown(), true);
 
   act(() => latestSocket().serverOpens());
@@ -152,7 +150,7 @@ test('the header says it is reconnecting while the chat socket is down, and clea
 });
 
 test('a first connection that fails is shown too', () => {
-  render(header('chat'));
+  render(header());
   act(() => latestSocket().serverDrops());
   assert.equal(isIndicatorShown(), true);
 });

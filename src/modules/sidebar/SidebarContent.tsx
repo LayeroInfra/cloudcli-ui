@@ -3,10 +3,13 @@ import type { TFunction } from 'i18next';
 import { SquarePen } from 'lucide-react';
 
 import { ScrollArea } from '@/shared/ui';
-import type { Project, ReleaseInfo, SidebarProjectListProps, SettingsMainTab } from '@/shared/types';
+import { cn } from '@/shared/utils';
+import type { Project, SidebarProjectListProps, SettingsMainTab } from '@/shared/types';
 import SidebarFooter from '@/modules/sidebar/SidebarFooter';
 import SidebarHeader from '@/modules/sidebar/SidebarHeader';
 import SidebarProjectList from '@/modules/sidebar/SidebarProjectList';
+import SidebarPinnedSessions from '@/modules/sidebar/SidebarPinnedSessions';
+import { useCompactSidebar } from '@/modules/sidebar/hooks/useCompactSidebar';
 
 type SidebarContentProps = {
   isPWA: boolean;
@@ -20,12 +23,8 @@ type SidebarContentProps = {
   isRefreshing: boolean;
   onCreateProject: () => void;
   onCollapseSidebar: () => void;
-  updateAvailable: boolean;
   restartRequired: boolean;
-  releaseInfo: ReleaseInfo | null;
-  latestVersion: string | null;
   currentVersion: string;
-  onShowVersionModal: () => void;
   onShowSettings: (tab?: SettingsMainTab) => void;
   projectListProps: SidebarProjectListProps;
   t: TFunction;
@@ -62,17 +61,14 @@ export default function SidebarContent({
   isRefreshing,
   onCreateProject,
   onCollapseSidebar,
-  updateAvailable,
   restartRequired,
-  releaseInfo,
-  latestVersion,
   currentVersion,
-  onShowVersionModal,
   onShowSettings,
   projectListProps,
   t,
 }: SidebarContentProps) {
   const isRenamingOnMobile = isMobile && projectListProps.activeRename !== null;
+  const isCompact = useCompactSidebar();
   // "New chat" opens in the project in view, else the one worked in last.
   const newChatProject = projectListProps.selectedProject ?? pickLastActiveProject(projects);
 
@@ -109,17 +105,25 @@ export default function SidebarContent({
       )}
 
       <ScrollArea className="flex-1 overflow-y-auto overscroll-contain md:px-1.5 md:py-2">
+        <SidebarPinnedSessions
+          projects={projects}
+          selectedSession={projectListProps.selectedSession}
+          currentTime={projectListProps.currentTime}
+          isCompact={isCompact}
+          onSessionSelect={projectListProps.onSessionSelect}
+          t={t}
+        />
+        {/* Headed like Pinned, so the two lists read as separate sections. */}
+        <h3 className={cn('px-2 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground', isCompact ? 'mx-3' : 'mx-1')}>
+          {t('projects.title', { defaultValue: 'Projects' })}
+        </h3>
         <SidebarProjectList {...projectListProps} includeOffPagePins />
       </ScrollArea>
 
       {!isRenamingOnMobile && (
         <SidebarFooter
-          updateAvailable={updateAvailable}
           restartRequired={restartRequired}
-          releaseInfo={releaseInfo}
-          latestVersion={latestVersion}
           currentVersion={currentVersion}
-          onShowVersionModal={onShowVersionModal}
           onShowSettings={onShowSettings}
           provider={projectListProps.selectedSession?.__provider ?? 'claude'}
           t={t}

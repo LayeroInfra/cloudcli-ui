@@ -129,7 +129,7 @@
   body {
     @apply bg-background text-foreground;
 
-    font-family: "Encode Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     margin: 0;
@@ -588,6 +588,13 @@
     contain: layout style paint;
     content-visibility: auto;
     contain-intrinsic-size: auto 180px;
+  }
+
+  /* Message text: the system sans at 15px with open leading, as Claude Code
+     shows it; two classes so it outranks prose-sm and text-sm. */
+  .chat-message .chat-text {
+    font-size: 15px;
+    line-height: 1.65;
   }
 
   .chat-message.assistant {

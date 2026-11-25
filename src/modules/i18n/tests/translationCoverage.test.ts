@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { describe, expect, test } from 'vitest';
+import { beforeAll, describe, expect, test } from 'vitest';
 
-import { i18n } from '@/modules/i18n';
+import { i18n, loadLanguageResources } from '@/modules/i18n';
 import zhCNGit from '@/modules/i18n/locales/zh-CN/git.json';
 import zhTWGit from '@/modules/i18n/locales/zh-TW/git.json';
 
@@ -27,6 +27,11 @@ const LOCALES_DIR = path.resolve(
 );
 
 const CHINESE_LOCALES = ['zh-CN', 'zh-TW'] as const;
+
+// Non-English languages load on demand; register the ones under test first.
+beforeAll(async () => {
+  await Promise.all(CHINESE_LOCALES.map((locale) => loadLanguageResources(locale)));
+});
 
 /** Flattens a bundle into `a.b.c` -> leaf value, the form i18next resolves. */
 const flatten = (

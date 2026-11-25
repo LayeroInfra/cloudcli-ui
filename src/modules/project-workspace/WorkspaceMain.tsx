@@ -2,11 +2,8 @@ import React, { useCallback, useEffect, type Dispatch, type SetStateAction, useS
 
 import { ChatInterface } from '@/modules/chat';
 import { FileTree } from '@/modules/file-tree';
-import { GitPanel } from '@/modules/git-panel';
-import { PluginTabContent } from '@/modules/plugins';
-import { BrowserUsePanel, useBrowserUseEnabled } from '@/modules/browser-use';
 import { usePaletteOpsRegister } from '@/modules/command-palette';
-import { TaskMasterPanel, useTaskMasterProjectSync, useTasksSettings } from '@/modules/task-master';
+import { useTaskMasterProjectSync } from '@/modules/task-master';
 import type { AppTab, DirectoryRevealRequest, Project, ProjectSession, SessionBackgroundTask, SessionEstablishedContext, SessionNavigationOptions, SettingsMainTab } from '@/shared/types';
 import { useUiPreferences } from '@/shared/context/UiPreferencesContext';
 import { useFileOpenResolver } from '@/modules/project-workspace/hooks/useFileOpenResolver';
@@ -16,12 +13,14 @@ import { useProcessingSessions } from '@/shared/context/SessionProtectionContext
 import BackgroundProcessesPanel, { countRunningProcesses } from '@/modules/project-workspace/BackgroundProcessesPanel';
 import TerminalDock from '@/modules/project-workspace/TerminalDock';
 import { useWorkspacePanels } from '@/modules/project-workspace/hooks/useWorkspacePanels';
+import { useWorkspaceBuilds } from '@/modules/project-workspace/hooks/useWorkspaceBuilds';
+import WorkspaceBuildsPanel from '@/modules/project-workspace/WorkspaceBuildsPanel';
 import WorkspaceHeader from '@/modules/project-workspace/WorkspaceHeader';
 import WorkspaceStateView from '@/modules/project-workspace/WorkspaceStateView';
 import WorkspaceErrorBoundary from '@/modules/project-workspace/WorkspaceErrorBoundary';
 
 type WorkspaceMainProps = {
-  /** Every loaded project, for naming sessions in the background-processes drawer. */
+  /** Every loaded project, for naming sessions in the background-tasks card. */
   projects: Project[];
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
@@ -48,7 +47,7 @@ type WorkspaceMainProps = {
 /**
  * Rendered by ProjectMainRegion: the workspace header, the selected project's active tab
  * (chat, files, git, tasks, browser-use or a plugin) with the terminal dock under it, the
- * site-preview browser beside it and the background-processes drawer over it.
+ * site-preview browser beside it and the background-tasks and builds cards over the chat.
  */
 function WorkspaceMain({
   projects,
@@ -73,15 +72,12 @@ function WorkspaceMain({
   const preferences = useUiPreferences();
   const { showRawParameters, showThinking, sendByCtrlEnter } = preferences;
 
-  const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
-  const browserUseEnabled = useBrowserUseEnabled();
-
   useTaskMasterProjectSync(selectedProject);
   const { openPanels, togglePanel, setPanelOpen } = useWorkspacePanels();
   const processingSessions = useProcessingSessions();
   const runningProcessCount = countRunningProcesses(processingSessions);
   // The open session's background tasks, finished ones included, as the chat
-  // read them from its transcript; listed by the background-tasks drawer.
+  // read them from its transcript; listed by the background-tasks card.
   const [sessionBackgroundTasks, setSessionBackgroundTasks] = useState<SessionBackgroundTask[]>([]);
   const selectedSessionId = selectedSession?.id ?? null;
 
@@ -91,23 +87,25 @@ function WorkspaceMain({
   }, [onNavigateToSession, setActiveTab]);
 
   const closeBackgroundPanel = useCallback(() => setPanelOpen('background', false), [setPanelOpen]);
+  const closeBuildsPanel = useCallback(() => setPanelOpen('builds', false), [setPanelOpen]);
+  // The signed-in user's Woodpecker builds, for the builds card and its header badge.
+  const workspaceBuilds = useWorkspaceBuilds(openPanels.builds);
   const closeTerminal = useCallback(() => setPanelOpen('terminal', false), [setPanelOpen]);
   const setBrowserOpen = useCallback((open: boolean) => setPanelOpen('browser', open), [setPanelOpen]);
 
-  // The terminal used to be a tab; links and the command palette that still
-  // ask for it open the dock over the chat instead.
+  // The workspace is the chat alone, as in Cursor: the old tabs are gone.
+  // Links and the command palette that still ask for one land on its panel
+  // (files → explorer, shell → terminal dock) or simply stay on the chat.
   useEffect(() => {
-    if (activeTab === 'shell') {
-      setPanelOpen('terminal', true);
-      setActiveTab('chat');
-    }
+    if (activeTab === 'chat') return;
+    if (activeTab === 'shell') setPanelOpen('terminal', true);
+    if (activeTab === 'files') setPanelOpen('files', true);
+    setActiveTab('chat');
   }, [activeTab, setActiveTab, setPanelOpen]);
+  const closeFilesPanel = useCallback(() => setPanelOpen('files', false), [setPanelOpen]);
   // The folder an in-chat `path/` reference asked to reveal. Held as an object
   // so that re-clicking the same folder is a new request the tree acts on.
   const [revealDirectory, setRevealDirectory] = useState<DirectoryRevealRequest | null>(null);
-
-  const shouldShowTasksTab = Boolean(tasksEnabled && isTaskMasterInstalled);
-  const shouldShowBrowserTab = browserUseEnabled;
 
   const {
     editingFile,
@@ -129,41 +127,21 @@ function WorkspaceMain({
   // real project files before opening them in the in-app editor.
   const resolvedFileOpen = useFileOpenResolver(selectedProject, handleFileOpen);
 
-  useEffect(() => {
-    if (!shouldShowTasksTab && activeTab === 'tasks') {
-      setActiveTab('chat');
-    }
-  }, [shouldShowTasksTab, activeTab, setActiveTab]);
-
-  useEffect(() => {
-    if (!shouldShowBrowserTab && activeTab === 'browser') {
-      setActiveTab('chat');
-    }
-  }, [shouldShowBrowserTab, activeTab, setActiveTab]);
-
-  // Stable so React.memo(ChatInterface) can bail out: an inline arrow here made
-  // every WorkspaceMain render re-render the whole chat tree, including during
-  // an editor-divider drag.
-  const showAllTasks = useCallback(() => {
-    setActiveTab('tasks');
-  }, [setActiveTab]);
-
+  // Opens the file in the editor beside the chat; the explorer stays as it was.
   const openFile = useCallback((filePath: string) => {
-    if (handleFileOpen(filePath)) {
-      setActiveTab('files');
-    }
-  }, [handleFileOpen, setActiveTab]);
+    handleFileOpen(filePath);
+  }, [handleFileOpen]);
 
   // Opens the editor side panel in place, keeping the current tab (e.g. chat).
   const openFileInEditor = useCallback((filePath: string, line?: number | null) => {
     resolvedFileOpen(filePath, undefined, line);
   }, [resolvedFileOpen]);
 
-  // Directories cannot be read as text: reveal them in the file tree instead.
+  // Directories cannot be read as text: reveal them in the explorer instead.
   const openDirectory = useCallback((directoryPath: string) => {
-    setActiveTab('files');
+    setPanelOpen('files', true);
     setRevealDirectory({ path: directoryPath });
-  }, [setActiveTab]);
+  }, [setPanelOpen]);
 
   // Stable arguments keep usePaletteOpsRegister's effect from tearing down and
   // rewriting the whole palette registry on every render.
@@ -180,12 +158,8 @@ function WorkspaceMain({
   return (
     <div className="relative flex h-full flex-col">
       <WorkspaceHeader
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
         selectedProject={selectedProject}
         selectedSession={selectedSession}
-        shouldShowTasksTab={shouldShowTasksTab}
-        shouldShowBrowserTab={shouldShowBrowserTab}
         isMobile={isMobile}
         onMenuClick={onMenuClick}
         onRenameSession={onRenameSession}
@@ -193,71 +167,77 @@ function WorkspaceMain({
         background={{ open: openPanels.background, onToggle: () => togglePanel('background'), runningCount: runningProcessCount }}
         terminal={{ open: openPanels.terminal, onToggle: () => togglePanel('terminal') }}
         browser={{ open: openPanels.browser, onToggle: () => togglePanel('browser') }}
+        files={{ open: openPanels.files, onToggle: () => togglePanel('files') }}
+        builds={{ open: openPanels.builds, onToggle: () => togglePanel('builds'), activeCount: workspaceBuilds.activeCount }}
       />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div className={`flex min-h-0 min-w-[200px] flex-col overflow-hidden ${editorExpanded ? 'hidden' : ''} flex-1`}>
-          <div className={`h-full ${activeTab === 'chat' ? 'block' : 'hidden'}`}>
-            <WorkspaceErrorBoundary showDetails>
-              <ChatInterface
-                isActive={activeTab === 'chat'}
-                selectedProject={selectedProject}
-                selectedSession={selectedSession}
-                ws={ws}
+        <div className="relative flex min-h-0 flex-1 overflow-hidden">
+        {/* Explorer, as in Cursor: off by default, beside the chat (over it on mobile). */}
+        {openPanels.files && (
+          <aside
+            aria-label="Files"
+            className={isMobile
+              ? 'absolute inset-0 z-30 flex flex-col bg-background'
+              : 'flex w-64 flex-shrink-0 flex-col overflow-hidden border-r border-border/60 lg:w-72'}
+          >
+            <FileTree
+              selectedProject={selectedProject}
+              onFileOpen={(filePath) => {
+                handleFileOpen(filePath);
+                if (isMobile) closeFilesPanel();
+              }}
+              revealDirectory={revealDirectory}
+            />
+          </aside>
+        )}
+
+        <div className={`relative flex min-h-0 min-w-[200px] flex-col overflow-hidden ${editorExpanded ? 'hidden' : ''} flex-1`}>
+          <WorkspaceErrorBoundary showDetails>
+            <ChatInterface
+              isActive
+              selectedProject={selectedProject}
+              selectedSession={selectedSession}
+              ws={ws}
+              sendMessage={sendMessage}
+              onFileOpen={handleFileOpen}
+              onNavigateToSession={onNavigateToSession}
+              onSessionEstablished={onSessionEstablished}
+              onShowSettings={onShowSettings}
+              showRawParameters={showRawParameters}
+              showThinking={showThinking}
+              sendByCtrlEnter={sendByCtrlEnter}
+              externalMessageUpdate={externalMessageUpdate}
+              newSessionTrigger={newSessionTrigger}
+              onShowAllTasks={null}
+              onBackgroundTasksChange={setSessionBackgroundTasks}
+            />
+          </WorkspaceErrorBoundary>
+
+          {/* Background tasks and builds float over the chat as cards, as in
+              Claude Code; opened together they stack and share the height.
+              They live in the chat column, so an open browser panel stays clear. */}
+          {(openPanels.background || openPanels.builds) && (
+            <div className="pointer-events-none absolute right-3 top-3 z-30 flex max-h-[calc(100%-1.5rem)] w-[min(24rem,calc(100%-1.5rem))] flex-col gap-2">
+              <BackgroundProcessesPanel
+                open={openPanels.background}
+                onClose={closeBackgroundPanel}
+                projects={projects}
+                activeSessionId={selectedSessionId}
+                sessionTasks={sessionBackgroundTasks}
                 sendMessage={sendMessage}
-                onFileOpen={handleFileOpen}
-                onNavigateToSession={onNavigateToSession}
-                onSessionEstablished={onSessionEstablished}
-                onShowSettings={onShowSettings}
-                showRawParameters={showRawParameters}
-                showThinking={showThinking}
-                sendByCtrlEnter={sendByCtrlEnter}
-                externalMessageUpdate={externalMessageUpdate}
-                newSessionTrigger={newSessionTrigger}
-                onShowAllTasks={tasksEnabled ? showAllTasks : null}
-                onBackgroundTasksChange={setSessionBackgroundTasks}
+                onOpenSession={openSession}
               />
-            </WorkspaceErrorBoundary>
-          </div>
-
-          {activeTab === 'files' && (
-            <div className="h-full overflow-hidden">
-              <FileTree
-                selectedProject={selectedProject}
-                onFileOpen={handleFileOpen}
-                revealDirectory={revealDirectory}
-              />
-            </div>
-          )}
-
-          {activeTab === 'git' && (
-            <div className="h-full overflow-hidden">
-              <GitPanel
-                selectedProject={selectedProject}
-                isMobile={isMobile}
-                onFileOpen={handleFileOpen}
-                onProjectSelect={onProjectSelect}
-                onProjectsRefresh={onProjectsRefresh}
-              />
-            </div>
-          )}
-
-          {shouldShowTasksTab && <TaskMasterPanel isVisible={activeTab === 'tasks'} />}
-
-          {shouldShowBrowserTab && activeTab === 'browser' && (
-            <div className="h-full overflow-hidden">
-              <BrowserUsePanel isVisible={activeTab === 'browser'} onShowSettings={onShowSettings} />
-            </div>
-          )}
-
-          {activeTab.startsWith('plugin:') && (
-            <div className="h-full overflow-hidden">
-              <PluginTabContent
-                pluginName={activeTab.replace('plugin:', '')}
-                selectedProject={selectedProject}
-                selectedSession={selectedSession}
+              <WorkspaceBuildsPanel
+                open={openPanels.builds}
+                onClose={closeBuildsPanel}
+                builds={workspaceBuilds.builds}
+                error={workspaceBuilds.error}
+                isLoading={workspaceBuilds.isLoading}
+                isTriggering={workspaceBuilds.isTriggering}
+                onTrigger={() => void workspaceBuilds.trigger()}
+                onRefresh={() => void workspaceBuilds.refresh()}
               />
             </div>
           )}
@@ -275,7 +255,7 @@ function WorkspaceMain({
           onToggleEditorExpand={handleToggleEditorExpand}
           onUnsavedChangesChange={handleUnsavedChangesChange}
           projectPath={selectedProject.path}
-          fillSpace={activeTab === 'files'}
+          fillSpace={false}
         />
         </div>
 
@@ -290,15 +270,6 @@ function WorkspaceMain({
         {!isMobile && <SitePreviewPanel open={openPanels.browser} onOpenChange={setBrowserOpen} />}
       </div>
 
-      <BackgroundProcessesPanel
-        open={openPanels.background}
-        onClose={closeBackgroundPanel}
-        projects={projects}
-        activeSessionId={selectedSessionId}
-        sessionTasks={sessionBackgroundTasks}
-        sendMessage={sendMessage}
-        onOpenSession={openSession}
-      />
     </div>
   );
 }

@@ -65,11 +65,15 @@ test('the corner shows the account and one ring for the weekly limit, with the f
   assert.equal(screen.queryByText(/76%/), null);
 });
 
-test('opening the profile shows the 5h and weekly limits, theme, preferences and settings', async () => {
+test('the usage card beside the profile lists the 5h and weekly limits; the profile menu holds theme, preferences and settings', async () => {
   mocks.rateLimits.mockReturnValue(respond(windowsFixture()));
   const onShowSettings = vi.fn();
   render(<SidebarAccount provider="claude" currentVersion="1.2.3" isCompact={false} onShowSettings={onShowSettings} t={t} />);
   await waitFor(() => screen.getByLabelText('Week: 18%'));
+
+  // The ring is not part of the profile button: clicking the profile opens the menu, hovering the ring shows usage.
+  assert.equal(screen.getByRole('button', { name: 'Account' }).contains(screen.getByTestId('account-limit-ring')), false);
+  assert.equal(screen.getByRole('button', { name: 'Account' }).contains(screen.getByTestId('account-plan-limits')), false);
 
   fireEvent.click(screen.getByRole('button', { name: 'Account' }));
   const limits = within(screen.getByTestId('account-plan-limits'));
@@ -102,7 +106,10 @@ test('the ring shows a skeleton while the first answer is in flight', () => {
   mocks.rateLimits.mockReturnValue(new Promise(() => {}));
   render(<SidebarAccount provider="claude" currentVersion="1" isCompact={false} onShowSettings={vi.fn()} t={t} />);
   assert.equal(screen.queryByTestId('account-limit-ring'), null);
-  assert.ok(screen.getByRole('button', { name: 'Account' }).querySelector('.animate-pulse'));
+  // The skeleton stands where the ring will be: beside the profile button, not inside it.
+  const account = screen.getByRole('button', { name: 'Account' });
+  assert.equal(account.querySelector('.animate-pulse'), null);
+  assert.ok(account.parentElement?.parentElement?.querySelector('.animate-pulse'));
 });
 
 test('without figures the ring stays, marked as having no data', async () => {

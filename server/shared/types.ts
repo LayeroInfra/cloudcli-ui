@@ -1862,3 +1862,44 @@ export type CliApplication = {
 export type SandboxCommandService = {
   execute(argumentsList: string[]): Promise<number>;
 };
+
+// ---------------------------
+
+//----------------- WORKSPACE BUILDS ------------
+
+/**
+ * One run of the CloudUI checks pipeline on Woodpecker, as the workspace
+ * builds API returns it to its owner. `status` is Woodpecker's word
+ * (`pending`, `running`, `success`, `failure`, `killed`, `error`, ...);
+ * timestamps are ISO strings, null until the run reaches that point.
+ */
+export type WorkspaceBuild = {
+  number: number;
+  status: string;
+  branch: string;
+  event: string;
+  message: string;
+  createdAt: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+};
+
+/** One step of a build (e.g. `session-tests`), with its state and exit code once known. */
+export type WorkspaceBuildStep = {
+  id: number;
+  name: string;
+  state: string;
+  exitCode: number | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+};
+
+/**
+ * A build with its steps and the last lines of one step's log: the step the
+ * caller asked for, else the first failed one, else the last one.
+ */
+export type WorkspaceBuildDetail = WorkspaceBuild & {
+  steps: WorkspaceBuildStep[];
+  logStepId: number | null;
+  logTail: string[];
+};
