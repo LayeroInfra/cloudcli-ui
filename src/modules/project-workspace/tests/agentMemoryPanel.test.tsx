@@ -40,21 +40,23 @@ const INSTRUCTIONS = {
 
 const props = (overrides = {}) => ({ open: true, onClose: vi.fn(), projectPath: '/srv/app', onOpenFile: vi.fn(), ...overrides });
 
-test('memory lists facts by project, filters by type and unfolds a fact with its issues', async () => {
+test('projects start folded; a type filter unfolds matches; a fact unfolds with its issues', async () => {
   mocks.map.mockResolvedValue(ok(MAP));
   mocks.instructions.mockResolvedValue(ok(INSTRUCTIONS));
   render(<AgentMemoryPanel {...props()} />);
 
-  await waitFor(() => screen.getByText('vm-limits'));
-  assert.ok(screen.getByText('/srv/app'));
-  assert.ok(screen.getByText('2 facts in 1 projects'));
+  const group = await waitFor(() => screen.getByRole('button', { expanded: false, name: /^app/ }));
+  assert.ok(screen.getByText('facts in 1 projects'));
   assert.ok(screen.getByText('1 projects with empty memory'));
-
-  fireEvent.click(screen.getByRole('button', { name: /feedback 1/ }));
   assert.equal(screen.queryByText('vm-limits'), null);
-  assert.ok(screen.getByText('tone'));
-  fireEvent.click(screen.getByRole('button', { name: /All 2/ }));
 
+  fireEvent.click(screen.getByRole('button', { name: /^feedback/ }));
+  assert.ok(screen.getByText('tone'));
+  assert.equal(screen.queryByText('vm-limits'), null);
+  fireEvent.click(screen.getByRole('button', { name: /^All/ }));
+  assert.equal(screen.queryByText('tone'), null);
+
+  fireEvent.click(group);
   fireEvent.click(screen.getByText('vm-limits'));
   assert.ok(screen.getByText('See [[builds-flow]].'));
   assert.ok(screen.getByText('[[builds-flow]] matches no memory yet.'));

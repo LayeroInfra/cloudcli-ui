@@ -1,4 +1,4 @@
-import { AlertTriangle, Brain, ChevronRight, FileText, Loader2, RefreshCw, Save, X } from 'lucide-react';
+import { AlertTriangle, Brain, ChevronRight, FileText, FolderOpen, Loader2, RefreshCw, Save, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -51,6 +51,15 @@ function formatWhen(iso: string | null): string {
     : date.toLocaleDateString([], { day: 'numeric', month: 'short' });
 }
 
+const TYPE_DOT: Record<string, string> = {
+  user: 'bg-sky-500',
+  feedback: 'bg-amber-500',
+  project: 'bg-emerald-500',
+  reference: 'bg-violet-500',
+};
+
+const dotFor = (type: string | null) => (type && TYPE_DOT[type]) || 'bg-muted-foreground/40';
+
 function TypeBadge({ type }: { type: string | null }) {
   return (
     <span className={cn('rounded px-1.5 py-px text-[10px] font-medium leading-4', type ? TYPE_CLASS[type] ?? 'bg-muted text-muted-foreground' : 'bg-muted text-muted-foreground')}>
@@ -62,9 +71,9 @@ function TypeBadge({ type }: { type: string | null }) {
 function IssueList({ issues }: { issues: AgentMemoryIssue[] }) {
   if (issues.length === 0) return null;
   return (
-    <ul className="space-y-0.5">
+    <ul className="space-y-0.5 rounded-md bg-amber-500/10 px-2 py-1.5">
       {issues.map((issue, index) => (
-        <li key={`${issue.kind}-${issue.file ?? ''}-${index}`} className="flex items-start gap-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+        <li key={`${issue.kind}-${issue.file ?? ''}-${index}`} className="flex items-start gap-1.5 text-[11px] text-amber-800 dark:text-amber-300">
           <AlertTriangle className="mt-0.5 h-3 w-3 flex-shrink-0" aria-hidden="true" />
           <span>{issue.detail}</span>
         </li>
@@ -73,98 +82,133 @@ function IssueList({ issues }: { issues: AgentMemoryIssue[] }) {
   );
 }
 
+/** The last folder of a path, with the rest beside it in muted type. */
+function splitPath(fullPath: string): { name: string; parent: string } {
+  const trimmed = fullPath.replace(/\/+$/, '');
+  const cut = trimmed.lastIndexOf('/');
+  return cut <= 0 ? { name: trimmed || '/', parent: '' } : { name: trimmed.slice(cut + 1), parent: trimmed.slice(0, cut) };
+}
+
 function FactRow({ fact, issues, knownSlugs }: { fact: AgentMemoryFact; issues: AgentMemoryIssue[]; knownSlugs: Set<string> }) {
   const [isOpen, setIsOpen] = useState(false);
   return (
-    <li className="rounded-md border border-border/60" data-fact={fact.file}>
+    <li data-fact={fact.file}>
       <button
         type="button"
         onClick={() => setIsOpen((previous) => !previous)}
         aria-expanded={isOpen}
-        className="flex w-full items-start gap-2 rounded-md px-2.5 py-1.5 text-left hover:bg-accent/50"
+        className={cn('group flex w-full items-start gap-2.5 px-3 py-2 text-left transition-colors hover:bg-accent/40', isOpen && 'bg-accent/30')}
       >
-        <ChevronRight className={cn('mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground transition-transform', isOpen && 'rotate-90')} aria-hidden="true" />
+        <span className={cn('mt-[7px] h-1.5 w-1.5 flex-shrink-0 rounded-full', dotFor(fact.type))} aria-hidden="true" />
         <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-1.5">
-            <TypeBadge type={fact.type} />
-            <span className="truncate text-sm font-medium text-foreground">{fact.name ?? fact.file}</span>
-            {issues.length > 0 && <AlertTriangle className="h-3 w-3 text-amber-500" aria-label={`${issues.length} issues`} />}
+          <span className="flex items-center gap-1.5">
+            <span className="truncate text-[13px] font-medium text-foreground">{fact.name ?? fact.file}</span>
+            {issues.length > 0 && <AlertTriangle className="h-3 w-3 flex-shrink-0 text-amber-500" aria-label={`${issues.length} issues`} />}
           </span>
-          {fact.description && <span className="mt-0.5 block text-xs text-muted-foreground">{fact.description}</span>}
+          {fact.description && <span className={cn('mt-0.5 block text-xs leading-snug text-muted-foreground', !isOpen && 'line-clamp-2')}>{fact.description}</span>}
         </span>
-        <span className="flex-shrink-0 text-[11px] text-muted-foreground">{formatWhen(fact.updatedAt)}</span>
+        <span className="mt-0.5 flex flex-shrink-0 items-center gap-2 text-[11px] text-muted-foreground">
+          <span className="hidden sm:inline">{fact.type ?? 'untyped'}</span>
+          <span className="tabular-nums">{formatWhen(fact.updatedAt)}</span>
+        </span>
       </button>
       {isOpen && (
-        <div className="space-y-2 border-t border-border/60 px-3 py-2">
+        <div className="space-y-2 bg-accent/30 px-3 pb-3 pl-7">
           <IssueList issues={issues} />
-          <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-2 font-mono text-[11px] leading-relaxed text-foreground/90">
+          <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border/60 bg-background p-2.5 font-mono text-[11px] leading-relaxed text-foreground/90">
             {fact.body || '(empty)'}
           </pre>
-          {fact.links.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1 text-[11px]">
-              <span className="text-muted-foreground">Links:</span>
-              {fact.links.map((link) => (
-                <span
-                  key={link}
-                  className={cn('rounded px-1.5 font-mono', knownSlugs.has(link) ? 'bg-muted text-foreground' : 'bg-amber-500/10 text-amber-700 dark:text-amber-400')}
-                  title={knownSlugs.has(link) ? undefined : 'Not written yet'}
-                >
-                  [[{link}]]
-                </span>
-              ))}
-            </div>
-          )}
-          <div className="font-mono text-[10px] text-muted-foreground">{fact.file} · {fact.size} B</div>
+          <div className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+            <TypeBadge type={fact.type} />
+            <span className="font-mono">{fact.file}</span>
+            <span>· {fact.size} B</span>
+            {fact.links.map((link) => (
+              <span
+                key={link}
+                className={cn('rounded px-1.5 font-mono', knownSlugs.has(link) ? 'bg-muted text-foreground' : 'bg-amber-500/10 text-amber-700 dark:text-amber-400')}
+                title={knownSlugs.has(link) ? undefined : 'Not written yet'}
+              >
+                [[{link}]]
+              </span>
+            ))}
+          </div>
         </div>
       )}
     </li>
   );
 }
 
-function StoreSection({ store, typeFilter }: { store: AgentMemoryStore; typeFilter: string | null }) {
+/** One project's memory, folded to its header until opened. */
+function StoreSection({ store, typeFilter, isOpen, onToggle }: { store: AgentMemoryStore; typeFilter: string | null; isOpen: boolean; onToggle: () => void }) {
   const { t } = useTranslation();
   const [showIndex, setShowIndex] = useState(false);
   const knownSlugs = useMemo(() => new Set(store.facts.flatMap((fact) => [fact.file.replace(/\.md$/, ''), ...(fact.name ? [fact.name] : [])])), [store.facts]);
   const facts = typeFilter ? store.facts.filter((fact) => fact.type === typeFilter) : store.facts;
   const storeIssues = store.issues.filter((issue) => !issue.file || !store.facts.some((fact) => fact.file === issue.file));
+  const typeCounts = MEMORY_TYPES.map((type) => [type, store.facts.filter((fact) => fact.type === type).length] as const).filter(([, count]) => count > 0);
+  const { name, parent } = splitPath(store.projectPath ?? store.id);
 
   if (typeFilter && facts.length === 0) return null;
 
   return (
-    <section className="rounded-lg border border-border/70" data-store={store.id}>
-      <div className="flex items-center gap-2 px-3 py-2">
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-mono text-xs font-medium text-foreground" title={store.id}>{store.projectPath ?? store.id}</div>
-          <div className="text-[11px] text-muted-foreground">
-            {[
-              t('workspace.memory.factCount', { count: store.facts.length, defaultValue: '{{count}} facts' }),
-              store.issues.length > 0 && t('workspace.memory.issueCount', { count: store.issues.length, defaultValue: '{{count}} issues' }),
-              store.updatedAt && formatWhen(store.updatedAt),
-            ].filter(Boolean).join(' · ')}
-          </div>
-        </div>
-        {store.index.exists && (
-          <button
-            type="button"
-            onClick={() => setShowIndex((previous) => !previous)}
-            aria-pressed={showIndex}
-            className={cn('rounded px-1.5 py-0.5 font-mono text-[10px] transition-colors', showIndex ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/70')}
-          >
-            MEMORY.md
-          </button>
-        )}
-      </div>
-      <div className="space-y-2 px-2 pb-2">
-        {storeIssues.length > 0 && <div className="px-1"><IssueList issues={storeIssues} /></div>}
-        {showIndex && (
-          <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-2 font-mono text-[11px] leading-relaxed">{store.index.raw}</pre>
-        )}
-        <ul className="space-y-1">
-          {facts.map((fact) => (
-            <FactRow key={fact.file} fact={fact} knownSlugs={knownSlugs} issues={store.issues.filter((issue) => issue.file === fact.file)} />
+    <section className={cn('overflow-hidden rounded-lg border transition-colors', isOpen ? 'border-border bg-background' : 'border-border/60 bg-background/40 hover:border-border')} data-store={store.id}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left"
+      >
+        <ChevronRight className={cn('h-3.5 w-3.5 flex-shrink-0 text-muted-foreground transition-transform duration-150', isOpen && 'rotate-90')} aria-hidden="true" />
+        <FolderOpen className="h-4 w-4 flex-shrink-0 text-muted-foreground" aria-hidden="true" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold text-foreground" title={store.projectPath ?? store.id}>{name}</span>
+          {parent && <span className="block truncate font-mono text-[10px] text-muted-foreground">{parent}</span>}
+        </span>
+        <span className="flex flex-shrink-0 items-center gap-2">
+          {typeCounts.map(([type, count]) => (
+            <span key={type} className="flex items-center gap-1 text-[11px] tabular-nums text-muted-foreground" title={type}>
+              <span className={cn('h-1.5 w-1.5 rounded-full', dotFor(type))} aria-hidden="true" />
+              {count}
+            </span>
           ))}
-        </ul>
-      </div>
+          {store.issues.length > 0 && (
+            <span className="flex items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 text-[10px] font-medium leading-4 text-amber-700 dark:text-amber-300" title={t('workspace.memory.issueCount', { count: store.issues.length, defaultValue: '{{count}} issues' })}>
+              <AlertTriangle className="h-2.5 w-2.5" aria-hidden="true" />
+              {store.issues.length}
+            </span>
+          )}
+          <span className="w-12 text-right text-[11px] tabular-nums text-muted-foreground">{formatWhen(store.updatedAt)}</span>
+        </span>
+      </button>
+
+      {isOpen && (
+        <div className="border-t border-border/60">
+          {(storeIssues.length > 0 || store.index.exists) && (
+            <div className="flex items-start gap-2 px-3 py-2">
+              <div className="min-w-0 flex-1">{storeIssues.length > 0 && <IssueList issues={storeIssues} />}</div>
+              {store.index.exists && (
+                <button
+                  type="button"
+                  onClick={() => setShowIndex((previous) => !previous)}
+                  aria-pressed={showIndex}
+                  className={cn('flex flex-shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[10px] transition-colors', showIndex ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/70')}
+                >
+                  <FileText className="h-3 w-3" aria-hidden="true" />
+                  MEMORY.md · {store.index.lines}
+                </button>
+              )}
+            </div>
+          )}
+          {showIndex && (
+            <pre className="mx-3 mb-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/50 p-2 font-mono text-[11px] leading-relaxed">{store.index.raw}</pre>
+          )}
+          <ul className="divide-y divide-border/50 border-t border-border/40">
+            {facts.map((fact) => (
+              <FactRow key={fact.file} fact={fact} knownSlugs={knownSlugs} issues={store.issues.filter((issue) => issue.file === fact.file)} />
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }
@@ -172,40 +216,69 @@ function StoreSection({ store, typeFilter }: { store: AgentMemoryStore; typeFilt
 function MemoryTab({ map, typeFilter, onTypeFilter }: { map: AgentMemoryMap; typeFilter: string | null; onTypeFilter: (type: string | null) => void }) {
   const { t } = useTranslation();
   const [showEmpty, setShowEmpty] = useState(false);
+  // Groups start folded; a type filter unfolds the ones it matches. A click
+  // flips a group from that default, until the filter changes again.
+  const [flipped, setFlipped] = useState<Set<string>>(new Set());
+  useEffect(() => setFlipped(new Set()), [typeFilter]);
+
   const filled = map.stores.filter((store) => store.facts.length > 0 || store.issues.length > 0);
   const empty = map.stores.filter((store) => !filled.includes(store));
   const allFacts = filled.flatMap((store) => store.facts);
   const issueCount = map.stores.reduce((sum, store) => sum + store.issues.length, 0);
+  const presentTypes = MEMORY_TYPES.filter((type) => allFacts.some((fact) => fact.type === type));
+  const allOpen = filled.length > 0 && filled.every((store) => (typeFilter !== null) !== flipped.has(store.id));
+
+  const toggle = (id: string) => setFlipped((previous) => {
+    const next = new Set(previous);
+    if (!next.delete(id)) next.add(id);
+    return next;
+  });
+  const setAll = (open: boolean) => setFlipped(new Set(open === (typeFilter !== null) ? [] : filled.map((store) => store.id)));
 
   return (
-    <div className="space-y-2">
-      <p className="px-1 text-[11px] text-muted-foreground">
-        {t('workspace.memory.summary', {
-          facts: allFacts.length,
-          stores: filled.length,
-          defaultValue: '{{facts}} facts in {{stores}} projects',
-        })}
-        {issueCount > 0 && <span className="text-amber-700 dark:text-amber-400"> · {t('workspace.memory.issueCount', { count: issueCount, defaultValue: '{{count}} issues' })}</span>}
-        {' · '}
-        {t('workspace.memory.shared', { defaultValue: 'shared by everyone on this workspace' })}
-      </p>
+    <div className="space-y-3">
+      <div className="flex items-end justify-between gap-3 px-1">
+        <div>
+          <div className="flex items-baseline gap-3">
+            <span className="text-lg font-semibold tabular-nums text-foreground">{allFacts.length}</span>
+            <span className="text-xs text-muted-foreground">
+              {t('workspace.memory.factsIn', { count: filled.length, defaultValue: 'facts in {{count}} projects' })}
+            </span>
+            {issueCount > 0 && (
+              <span className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
+                <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                {t('workspace.memory.issueCount', { count: issueCount, defaultValue: '{{count}} issues' })}
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground">{t('workspace.memory.shared', { defaultValue: 'Shared by everyone on this workspace' })}</p>
+        </div>
+        {filled.length > 1 && (
+          <button type="button" onClick={() => setAll(!allOpen)} className="flex-shrink-0 text-[11px] text-muted-foreground hover:text-foreground">
+            {allOpen ? t('workspace.memory.collapseAll', { defaultValue: 'Collapse all' }) : t('workspace.memory.expandAll', { defaultValue: 'Expand all' })}
+          </button>
+        )}
+      </div>
 
-      {allFacts.length > 0 && (
+      {presentTypes.length > 1 && (
         <div className="flex flex-wrap gap-1 px-1" role="group" aria-label="Type">
-          {[null, ...MEMORY_TYPES].map((type) => {
+          {[null, ...presentTypes].map((type) => {
             const count = type ? allFacts.filter((fact) => fact.type === type).length : allFacts.length;
+            const active = typeFilter === type;
             return (
               <button
                 key={type ?? 'all'}
                 type="button"
                 onClick={() => onTypeFilter(type)}
-                aria-pressed={typeFilter === type}
+                aria-pressed={active}
                 className={cn(
-                  'rounded-full border px-2 py-0.5 text-[11px] transition-colors',
-                  typeFilter === type ? 'border-foreground/30 bg-accent text-foreground' : 'border-border text-muted-foreground hover:bg-accent/60',
+                  'flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] transition-colors',
+                  active ? 'border-foreground/25 bg-accent text-foreground' : 'border-border/70 text-muted-foreground hover:bg-accent/60',
                 )}
               >
-                {type ?? t('workspace.memory.all', { defaultValue: 'All' })} {count}
+                {type && <span className={cn('h-1.5 w-1.5 rounded-full', dotFor(type))} aria-hidden="true" />}
+                {type ?? t('workspace.memory.all', { defaultValue: 'All' })}
+                <span className="tabular-nums opacity-70">{count}</span>
               </button>
             );
           })}
@@ -213,14 +286,25 @@ function MemoryTab({ map, typeFilter, onTypeFilter }: { map: AgentMemoryMap; typ
       )}
 
       {filled.length === 0 ? (
-        <div className="px-6 py-5 text-center">
+        <div className="flex flex-col items-center gap-1 rounded-lg border border-dashed border-border px-6 py-8 text-center">
+          <Brain className="mb-1 h-5 w-5 text-muted-foreground" aria-hidden="true" />
           <p className="text-sm font-medium text-foreground">{t('workspace.memory.emptyTitle', { defaultValue: 'Nothing remembered yet' })}</p>
           <p className="text-xs text-muted-foreground">
             {t('workspace.memory.emptyHint', { defaultValue: 'Facts the agent saves to its memory show up here, by project.' })}
           </p>
         </div>
       ) : (
-        filled.map((store) => <StoreSection key={store.id} store={store} typeFilter={typeFilter} />)
+        <div className="space-y-1.5">
+          {filled.map((store) => (
+            <StoreSection
+              key={store.id}
+              store={store}
+              typeFilter={typeFilter}
+              isOpen={(typeFilter !== null) !== flipped.has(store.id)}
+              onToggle={() => toggle(store.id)}
+            />
+          ))}
+        </div>
       )}
 
       {empty.length > 0 && (
