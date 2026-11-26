@@ -51,7 +51,8 @@ final class WorkspaceWindow: NSWindow {
 
   @objc @discardableResult
   func pasteIntoWebView(_ sender: Any?) -> Bool {
-    guard let webView = contentView as? WKWebView else { return false }
+    let workspace = contentView as? WorkspaceContentView
+    guard let webView = workspace?.webView(for: firstResponder) ?? contentView as? WKWebView else { return false }
     return webView.tryToPerform(#selector(NSText.paste(_:)), with: sender)
   }
 }

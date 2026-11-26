@@ -32,6 +32,11 @@ if [ -f "$LOG_DIR/tunnel.pid" ]; then
   rm -f "$LOG_DIR/tunnel.pid"
 fi
 pkill -f 'ssh .*-L 127.0.0.1:19443:127.0.0.1:9443' 2>/dev/null || true
+if [ -f "$LOG_DIR/preview-tunnel.pid" ]; then
+  kill "$(cat "$LOG_DIR/preview-tunnel.pid")" 2>/dev/null || true
+  rm -f "$LOG_DIR/preview-tunnel.pid"
+fi
+rm -f "$LOG_DIR/preview-ports.json"
 
 # Woodpecker agent / build helper
 pkill -f "${HOME}/.local/share/cloudcli-companion/bin/woodpecker-agent" 2>/dev/null || true

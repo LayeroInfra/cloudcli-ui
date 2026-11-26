@@ -10,6 +10,10 @@ app.delegate = delegate
 let menu = NSMenu()
 let appItem = NSMenuItem()
 let appMenu = NSMenu(title: "Layero Workspace")
+if #available(macOS 13.3, *) {
+  BrowserWindow.addInspectorToggle(to: appMenu)
+  appMenu.addItem(.separator())
+}
 appMenu.addItem(
   withTitle: "Завершить Layero Workspace",
   action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"

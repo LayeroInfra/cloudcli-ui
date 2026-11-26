@@ -58,6 +58,13 @@ infra/vm/install.sh --restart                     # заодно перезап�
 
 zip для людей без клона: `companion/bin/package.sh ~/layero-mac-runtime.tar.gz`.
 
+## Превью фронтенда Layero
+
+Если на VM есть checkout `/srv/Layero/frontend` с зависимостями, таймер
+`workspace-built-preview-refresh.timer` собирает текущий коммит автоматически.
+Для браузера Companion `localhost:5174` ведёт к последней успешной сборке, а
+`localhost:15173` открывает Vite dev с hot reload. Vite dev на VM остаётся на `5174`.
+
 ## Сборки и выкатка
 
 - **checks** — Builds → Run checks (или `workspace-trigger-build --title "…"`): тесты в checkout на Mac владельца.

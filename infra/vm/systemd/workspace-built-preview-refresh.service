@@ -1,0 +1,8 @@
+[Unit]
+Description=Build the Layero frontend preview from the current commit
+ConditionPathExists=/srv/Layero/frontend/control-plane/node_modules/vite/bin/vite.js
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/workspace-built-preview refresh
+UMask=0077

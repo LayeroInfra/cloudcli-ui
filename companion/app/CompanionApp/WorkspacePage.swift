@@ -3,12 +3,15 @@ import WebKit
 
 final class WorkspacePage: NSObject, WKNavigationDelegate {
   let webView: WKWebView
+  let contentView: WorkspaceContentView
+  private let preview: WorkspacePreview
   let dragRegions = WorkspaceDragRegions()
   private let url = URL(string: "https://127.0.0.1:19443/")!
   private var completion: ((Bool) -> Void)?
 
   init(token: String, completion: @escaping (Bool) -> Void) {
     self.completion = completion
+    preview = WorkspacePreview(origin: url)
     let config = WKWebViewConfiguration()
     config.websiteDataStore = .nonPersistent()
     let encodedToken = String(decoding: try! JSONEncoder().encode(token), as: UTF8.self)
@@ -16,16 +19,26 @@ final class WorkspacePage: NSObject, WKNavigationDelegate {
       source: """
         if (location.origin === 'https://127.0.0.1:19443') {
           localStorage.setItem('auth-token', \(encodedToken));
+          try {
+            const panels = JSON.parse(localStorage.getItem('workspace-panels-open') || '{}');
+            panels.browser = false;
+            localStorage.setItem('workspace-panels-open', JSON.stringify(panels));
+          } catch {}
         }
         """,
       injectionTime: .atDocumentStart,
       forMainFrameOnly: true
     ))
     config.userContentController.add(dragRegions, contentWorld: .defaultClient, name: "workspaceDragRegions")
+    config.userContentController.add(preview, contentWorld: .defaultClient, name: "workspacePreviewLayout")
     config.userContentController.addUserScript(Self.windowIntegration)
     webView = WKWebView(frame: .zero, configuration: config)
+    contentView = WorkspaceContentView(workspace: webView)
+    preview.contentView = contentView
     super.init()
     webView.navigationDelegate = self
+    webView.uiDelegate = WebPageHost.shared
+    dragRegions.webView = webView
   }
 
   func load() {
@@ -37,17 +50,33 @@ final class WorkspacePage: NSObject, WKNavigationDelegate {
     decidePolicyFor navigationAction: WKNavigationAction,
     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
   ) {
+    if navigationAction.shouldPerformDownload {
+      decisionHandler(.download)
+      return
+    }
     let destination = navigationAction.request.url
     if destination?.scheme == url.scheme, destination?.host == url.host, destination?.port == url.port {
       decisionHandler(.allow)
       return
     }
+    if let frame = navigationAction.targetFrame, !frame.isMainFrame {
+      // The preview panel renders loopback pages in a separate web view in this window.
+      let source = navigationAction.sourceFrame
+      let initiator = source.securityOrigin
+      if source.isMainFrame,
+         initiator.protocol == url.scheme, initiator.host == url.host, initiator.port == url.port,
+         let destination, BrowserWindow.isLocalPreview(destination) {
+        decisionHandler(.cancel)
+      } else {
+        decisionHandler(.allow)
+      }
+      return
+    }
     decisionHandler(.cancel)
     if completion != nil {
       finish(false)
-    } else if navigationAction.navigationType == .linkActivated,
-              let destination, ["https", "http"].contains(destination.scheme) {
-      NSWorkspace.shared.open(destination)
+    } else if let destination, ["https", "http"].contains(destination.scheme?.lowercased()) {
+      BrowserWindow.open(destination)
     }
   }
 
@@ -61,9 +90,19 @@ final class WorkspacePage: NSObject, WKNavigationDelegate {
        !(200..<300).contains(response.statusCode) {
       decisionHandler(.cancel)
       finish(false)
+    } else if completion == nil, WebPageHost.shouldDownload(navigationResponse) {
+      decisionHandler(.download)
     } else {
       decisionHandler(.allow)
     }
+  }
+
+  func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
+    download.delegate = Downloads.shared
+  }
+
+  func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
+    download.delegate = Downloads.shared
   }
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -83,6 +122,8 @@ final class WorkspacePage: NSObject, WKNavigationDelegate {
 
   private static let windowIntegration = WKUserScript(
     source: """
+      // Popups the workspace opens share this configuration; leave them alone.
+      if (location.origin === 'https://127.0.0.1:19443' && !window.opener) {
       const style = document.createElement('style');
       style.textContent = `
         .fixed.inset-0.flex.bg-background:has(> .flex.min-w-0.flex-1.flex-col) {
@@ -91,7 +132,9 @@ final class WorkspacePage: NSObject, WKNavigationDelegate {
       `;
       document.head.append(style);
       \(WorkspaceDragRegions.script)
+      \(WorkspacePreview.integration)
       \(WorkspacePage.profileAndStartupScript)
+      }
       """,
     injectionTime: .atDocumentEnd,
     forMainFrameOnly: true,

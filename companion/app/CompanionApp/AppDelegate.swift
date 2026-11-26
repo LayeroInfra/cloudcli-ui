@@ -193,7 +193,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       let available = window.screen?.visibleFrame.size ?? NSSize(width: 1120, height: 760)
       window.setContentSize(NSSize(width: min(1120, available.width), height: min(760, available.height - 30)))
       window.center()
-      window.contentView = page.webView
+      window.contentView = page.contentView
       window.makeFirstResponder(page.webView)
     } else {
       handoffFailed = true

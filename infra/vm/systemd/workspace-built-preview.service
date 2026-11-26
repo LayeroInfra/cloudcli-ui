@@ -1,0 +1,11 @@
+[Unit]
+Description=Layero frontend built preview
+ConditionPathExists=%h/.local/share/layero-built-preview/current/index.html
+
+[Service]
+ExecStart=%h/.local/bin/workspace-built-preview serve
+Restart=on-failure
+UMask=0077
+
+[Install]
+WantedBy=default.target

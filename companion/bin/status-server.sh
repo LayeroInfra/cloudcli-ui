@@ -33,6 +33,7 @@ PORT = int(os.environ["PORT"])
 LOG_DIR = Path(os.environ["LOG_DIR"])
 AGENT_LOG = LOG_DIR / "agent.log"
 TUNNEL_PID = LOG_DIR / "tunnel.pid"
+PREVIEW_PORTS = LOG_DIR / "preview-ports.json"
 
 def sh(cmd):
     try:
@@ -68,6 +69,18 @@ def tunnel_alive():
     except OSError:
         return False
 
+def preview_ports():
+    try:
+        data = json.loads(PREVIEW_PORTS.read_text())
+    except Exception:
+        return {"alive": False, "ports": {}}
+    pid_file = LOG_DIR / "preview-tunnel.pid"
+    try:
+        os.kill(int(pid_file.read_text().strip()), 0)
+    except Exception:
+        data["alive"] = False
+    return data
+
 def recent_agent_events(limit=12):
     if not AGENT_LOG.exists():
         return []
@@ -85,6 +98,7 @@ def status_payload():
         "checkout": CHECKOUT,
         "agentAlive": agent_alive(),
         "tunnelAlive": tunnel_alive(),
+        "preview": preview_ports(),
         "running": running_builds(),
         "recent": recent_agent_events(),
         "ts": int(time.time()),
@@ -138,6 +152,7 @@ async function tick(){
     <div class="card"><div class="k">owner</div><div class="v">${s.owner}</div></div>
     <div class="card"><div class="k">агент</div><div class="v">${yes(s.agentAlive)}</div></div>
     <div class="card"><div class="k">туннель :19000</div><div class="v">${yes(s.tunnelAlive)}</div></div>
+    <div class="card"><div class="k">preview-порты</div><div class="v">${s.preview.alive ? Object.entries(s.preview.ports).map(([p, v]) => `${p}${v.state === 'busy' ? ' (занят на Mac)' : ''}`).join(', ') : yes(false)}</div></div>
     <div class="card"><div class="k">Layero Workspace</div><div class="v"><a href="${s.gatewayUrl}" target="_blank" rel="noreferrer">открыть</a></div></div>`;
   const run = document.getElementById('running');
   if (!s.running.length) {
