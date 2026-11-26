@@ -1,0 +1,25 @@
+{
+	auto_https off
+	admin off
+	log {
+		output file @HOME@/.local/state/workspace-gateway/access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}
+
+:9443 {
+	bind 0.0.0.0
+	tls @HOME@/.config/workspace-gateway/certs/cert.pem @HOME@/.config/workspace-gateway/certs/key.pem
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+	request_body {
+		max_size 2MB
+	}
+	reverse_proxy 127.0.0.1:3002
+}

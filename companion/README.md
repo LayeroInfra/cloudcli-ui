@@ -22,18 +22,20 @@ workspace-add-user <username> <password>
 
 Исходники клиента находятся в `companion/`. Сборка требует Swift и утилит Xcode Command Line Tools.
 
+Полная инструкция для VM и Mac — [`infra/README.md`](../infra/README.md).
+
 ```bash
-./companion/bin/build-app.sh
-WORKSPACE_RUNTIME_DIR=/path/to/private-runtime ./companion/bin/install.sh
+# на VM (оператор): закрытый runtime — SSH-ключ, секрет агента, woodpecker-agent
+workspace-mac-runtime            # → ~/layero-mac-runtime.tar.gz
+# на Mac
+./companion/bin/install.sh --runtime ~/Downloads/layero-mac-runtime.tar.gz
 open ~/Applications/Layero\ Workspace.app
 ```
 
-Оператор готовит закрытую папку с `secrets/ssh/id_ed25519`, `agent/agent.secret`,
-`agent/agent.conf` и бинарником `bin/woodpecker-agent` для macOS. Эти файлы
-хранятся вне Git. Архив для команды собирается локально и включает эти данные доступа.
+Runtime хранится вне Git. zip для команды (включает runtime):
 
 ```bash
-WORKSPACE_RUNTIME_DIR=/path/to/private-runtime ./companion/bin/package.sh
+./companion/bin/package.sh ~/Downloads/layero-mac-runtime.tar.gz
 # → companion/dist/Layero-Workspace-macOS.zip
 ```
 

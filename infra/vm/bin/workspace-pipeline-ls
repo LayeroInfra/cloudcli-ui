@@ -1,0 +1,14 @@
+#!/bin/bash
+set -euo pipefail
+export WOODPECKER_SERVER="${WOODPECKER_SERVER:-http://127.0.0.1:8000}"
+export WOODPECKER_DISABLE_UPDATE_CHECK=true
+TOKEN_FILE="${HOME}/.local/state/woodpecker/user.token"
+if [ -z "${WOODPECKER_TOKEN:-}" ] && [ -f "$TOKEN_FILE" ]; then
+  WOODPECKER_TOKEN=$(tr -d '\n' < "$TOKEN_FILE")
+  export WOODPECKER_TOKEN
+fi
+if [ -z "${WOODPECKER_TOKEN:-}" ]; then
+  echo "Нет WOODPECKER_TOKEN ($TOKEN_FILE)" >&2
+  exit 1
+fi
+exec "$HOME/.local/bin/woodpecker-cli" pipeline ls buildadmin/cloudcli-checks --limit "${1:-5}"

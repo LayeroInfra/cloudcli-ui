@@ -1,0 +1,14 @@
+[Unit]
+Description=CloudUI live frontend preview
+
+[Service]
+WorkingDirectory=@REPO@
+Environment=HOST=127.0.0.1 SERVER_PORT=3002
+Environment=TMPDIR=%h/.local/state/dev-tmp
+ExecStart=%h/.local/bin/node %h/.local/bin/cloudui-live.mjs
+MemoryHigh=infinity
+MemoryMax=1000M
+UMask=0077
+
+[Install]
+WantedBy=default.target

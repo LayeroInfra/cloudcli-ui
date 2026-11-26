@@ -1,0 +1,7 @@
+[Unit]
+Description=Layero development builds
+[Slice]
+MemoryMax=2200M
+CPUQuota=140%
+CPUWeight=20
+IOWeight=20

@@ -1,0 +1,19 @@
+#!/bin/bash
+# npm for every session on the VM. Heavy tasks (build, typecheck, test, lint)
+# under @WORKSPACES_ROOT@ queue one at a time through layero-run-build, which waits
+# for free memory and runs them in layerobuild.slice; everything else is plain npm.
+real="$HOME/.local/lib/node-v@NODE_VERSION@-linux-x64/lib/node_modules/npm/bin/npm-cli.js"
+set -eu
+case "$PWD/" in @WORKSPACES_ROOT@/*) ;; *) exec "$real" "$@" ;; esac
+case "${1:-}" in
+  run|run-script) task=${2:-} ;;
+  test|t) task=test ;;
+  *) exec "$real" "$@" ;;
+esac
+case "$task" in
+  build|build:*|typecheck|test|test:*|lint|lint:*) ;;
+  *) exec "$real" "$@" ;;
+esac
+if grep -q '/layerobuild.slice/' /proc/self/cgroup; then exec "$real" "$@"; fi
+export GOMEMLIMIT=${GOMEMLIMIT:-256MiB} GOMAXPROCS=${GOMAXPROCS:-2}
+exec flock "$XDG_RUNTIME_DIR/layero-build.lock" "$HOME/.local/bin/layero-run-build" "$real" "$@"

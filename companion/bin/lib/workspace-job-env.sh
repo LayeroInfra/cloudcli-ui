@@ -36,4 +36,5 @@ if [ -n "${WORKSPACE_OWNER:-}" ] && [ "$(job_normalize_owner "$WORKSPACE_OWNER")
   echo "run is for owner=$WORKSPACE_OWNER, this Mac is owner=$JOB_OWNER" >&2
   exit 1
 fi
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+# The pinned Node from install.sh first; Homebrew for everything else.
+export PATH="$HOME/.local/lib/layero-node/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"

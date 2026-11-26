@@ -1,0 +1,14 @@
+[Unit]
+Description=Woodpecker CI server
+After=network.target forgejo.service
+Wants=forgejo.service
+
+[Service]
+EnvironmentFile=%h/.config/woodpecker/server.env
+ExecStart=%h/.local/bin/woodpecker-server
+Restart=on-failure
+RestartSec=3
+MemoryMax=350M
+
+[Install]
+WantedBy=default.target
