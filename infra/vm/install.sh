@@ -228,7 +228,7 @@ fi
 say "systemd units"
 UNITS_CHANGED=0
 unit_changed() { CHANGED_UNITS+=("$1"); UNITS_CHANGED=1; }
-for file in "$VM/systemd/"*.service "$VM/systemd/"*.slice; do
+for file in "$VM/systemd/"*.service "$VM/systemd/"*.slice "$VM/systemd/"*.timer; do
   name="$(basename "$file")"
   render "$file" "$UNITS/$name" 644 && unit_changed "$name"
 done
@@ -256,7 +256,7 @@ for live in "$HOME/.config/systemd/user.control/frontend-cloudcli.service.d/"50-
   else drift "$live (replaced by infra/vm/systemd/frontend-cloudcli.service.d/memory.conf)"; fi
 done
 
-SERVICES=(forgejo.service woodpecker-server.service frontend-cloudcli.service workspace-gateway.service cloudui-live.service)
+SERVICES=(forgejo.service woodpecker-server.service frontend-cloudcli.service workspace-gateway.service cloudui-live.service workspace-built-preview.service workspace-built-preview-refresh.timer)
 # What a restart would actually change: the unit's effective settings, not its file text.
 EFFECTIVE=ExecStart,Environment,EnvironmentFiles,WorkingDirectory,BindPaths,MemoryMax,MemoryHigh,UMask,OOMScoreAdjust,Restart,Slice
 effective() { systemctl --user show "$1" -p "$EFFECTIVE" 2>/dev/null | sed -E 's/ ; (start_time|stop_time|pid|code|status)=[^;}]*//g'; }
@@ -427,6 +427,9 @@ if [ -d "$REPO/node_modules/vite" ]; then
   start_or_restart cloudui-live.service "$(changed_flag cloudui-live.service)"
 else
   TODO+=("live preview: npm ci in $REPO, then systemctl --user start cloudui-live.service")
+fi
+if [ -f /srv/Layero/frontend/control-plane/node_modules/vite/bin/vite.js ]; then
+  start_or_restart workspace-built-preview-refresh.timer "$(changed_flag workspace-built-preview-refresh.timer)"
 fi
 if [ ! -d "$HOME/src/cloudcli-ui/node_modules" ]; then
   TODO+=("release dependencies: clone the UI repo to ~/src/cloudcli-ui and npm ci there (releases link its node_modules)")

@@ -1,0 +1,78 @@
+#!/bin/bash
+# Build the committed Layero frontend and serve its last successful preview.
+set -euo pipefail
+
+repo="${WORKSPACE_FRONTEND_REPO:-/srv/Layero/frontend}"
+state="$HOME/.local/share/layero-built-preview"
+node="$HOME/.local/bin/node"
+port=25174
+vite="$repo/control-plane/node_modules/vite/bin/vite.js"
+current="$state/current"
+
+if [ "${1:-}" = serve ]; then
+  cd "$repo/control-plane"
+  exec "$node" "$vite" preview --outDir "$current" --host 127.0.0.1 --port "$port" --strictPort
+fi
+
+[ "${1:-}" = refresh ] || { echo "usage: workspace-built-preview serve|refresh" >&2; exit 2; }
+test -x "$node" && test -f "$vite" || { echo "Install the frontend dependencies first" >&2; exit 1; }
+
+mkdir -p "$state/releases"
+exec 9>"$state/refresh.lock"
+flock -n 9 || exit 0
+revision="$(git -C "$repo" rev-parse --verify HEAD)"
+release="$state/releases/$revision"
+marker="workspace-built-preview $revision"
+if [ "$(readlink "$current" || true)" = "$release" ] &&
+   [ "$(cat "$release/__workspace_built_preview" 2>/dev/null || true)" = "$marker" ]; then
+  systemctl --user start workspace-built-preview.service
+  exit 0
+fi
+
+temporary="$(mktemp -d "$state/build.XXXXXX")"
+trap 'rm -rf "$temporary"' EXIT
+if [ "$(cat "$release/__workspace_built_preview" 2>/dev/null || true)" != "$marker" ]; then
+  mkdir "$temporary/source"
+  git -C "$repo" archive "$revision" | tar -x -C "$temporary/source"
+  ln -s "$repo/control-plane/node_modules" "$temporary/source/control-plane/node_modules"
+  (
+    cd "$temporary/source/control-plane"
+    VITE_API_URL="${VITE_API_URL:-https://api.layero.ru}" "$node" node_modules/vite/bin/vite.js build --outDir "$temporary/dist"
+  )
+  test -s "$temporary/dist/index.html"
+  printf '%s\n' "$marker" >"$temporary/dist/__workspace_built_preview"
+  mv -T "$temporary/dist" "$release"
+fi
+
+point_at() {
+  ln -s "$1" "$temporary/link"
+  mv -Tf "$temporary/link" "$2"
+}
+
+old="$(readlink "$current" || true)"
+older="$(readlink "$state/previous" || true)"
+point_at "$release" "$current"
+if systemctl --user restart workspace-built-preview.service; then
+  for _ in {1..20}; do
+    if [ "$(curl -fs --max-time 1 "http://127.0.0.1:$port/__workspace_built_preview" || true)" = "$marker" ]; then
+      if [ -n "$old" ]; then point_at "$old" "$state/previous"; fi
+      if [[ "$older" == "$state/releases/"* && "$older" != "$old" && "$older" != "$release" &&
+            "${older##*/}" =~ ^[0-9a-f]{40}$ ]]; then
+        rm -rf "$older"
+      fi
+      echo "Preview ready for $revision"
+      exit 0
+    fi
+    sleep .25
+  done
+fi
+
+if [ -n "$old" ]; then
+  point_at "$old" "$current"
+  systemctl --user restart workspace-built-preview.service
+else
+  rm -f "$current"
+  systemctl --user stop workspace-built-preview.service
+fi
+echo "Preview failed to start; kept the last working build" >&2
+exit 1

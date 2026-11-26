@@ -7,6 +7,39 @@ import WebKit
 final class BrowserWindow: NSObject, NSWindowDelegate, WKNavigationDelegate, NSTextFieldDelegate {
   /// Strong references; a window drops out when it closes.
   private static var open: Set<BrowserWindow> = []
+  private static let previewPorts: Set<Int> = [5174, 8080, 15173]
+  private static var inspectorEnabled = false
+  private static let inspectableViews = NSHashTable<WKWebView>.weakObjects()
+
+  static func isLocalPreview(_ url: URL) -> Bool {
+    url.scheme?.lowercased() == "http" &&
+      ["localhost", "127.0.0.1"].contains(url.host?.lowercased() ?? "") &&
+      url.port.map(previewPorts.contains) == true && url.user == nil && url.password == nil
+  }
+
+  static func trackInspector(_ view: WKWebView) {
+    inspectableViews.add(view)
+    if #available(macOS 13.3, *) { view.isInspectable = inspectorEnabled }
+  }
+
+  @available(macOS 13.3, *)
+  static func addInspectorToggle(to menu: NSMenu) {
+    let item = NSMenuItem(title: "Веб-инспектор для окон браузера", action: #selector(InspectorMenuTarget.toggleInspector(_:)), keyEquivalent: "")
+    item.target = inspectorMenuTarget
+    menu.addItem(item)
+  }
+
+  private static let inspectorMenuTarget = InspectorMenuTarget()
+
+  private final class InspectorMenuTarget: NSObject {
+    @objc func toggleInspector(_ item: NSMenuItem) {
+      guard #available(macOS 13.3, *) else { return }
+      inspectorEnabled.toggle()
+      item.state = inspectorEnabled ? .on : .off
+      for view in inspectableViews.allObjects { view.isInspectable = inspectorEnabled }
+    }
+  }
+
 
   /// Sign-ins survive restarts: unlike the workspace page, this store persists.
   private static func freshConfiguration() -> WKWebViewConfiguration {
@@ -52,6 +85,7 @@ final class BrowserWindow: NSObject, NSWindowDelegate, WKNavigationDelegate, NST
       backing: .buffered, defer: false
     )
     super.init()
+    Self.trackInspector(webView)
     webView.allowsBackForwardNavigationGestures = true
     webView.navigationDelegate = self
     webView.uiDelegate = WebPageHost.shared

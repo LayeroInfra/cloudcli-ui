@@ -3,12 +3,15 @@ import WebKit
 
 final class WorkspacePage: NSObject, WKNavigationDelegate {
   let webView: WKWebView
+  let contentView: WorkspaceContentView
+  private let preview: WorkspacePreview
   let dragRegions = WorkspaceDragRegions()
   private let url = URL(string: "https://127.0.0.1:19443/")!
   private var completion: ((Bool) -> Void)?
 
   init(token: String, completion: @escaping (Bool) -> Void) {
     self.completion = completion
+    preview = WorkspacePreview(origin: url)
     let config = WKWebViewConfiguration()
     config.websiteDataStore = .nonPersistent()
     // A URL a workspace program asks to open (`$BROWSER`, login flows) arrives
@@ -19,14 +22,22 @@ final class WorkspacePage: NSObject, WKNavigationDelegate {
       source: """
         if (location.origin === 'https://127.0.0.1:19443') {
           localStorage.setItem('auth-token', \(encodedToken));
+          try {
+            const panels = JSON.parse(localStorage.getItem('workspace-panels-open') || '{}');
+            panels.browser = false;
+            localStorage.setItem('workspace-panels-open', JSON.stringify(panels));
+          } catch {}
         }
         """,
       injectionTime: .atDocumentStart,
       forMainFrameOnly: true
     ))
     config.userContentController.add(dragRegions, contentWorld: .defaultClient, name: "workspaceDragRegions")
+    config.userContentController.add(preview, contentWorld: .defaultClient, name: "workspacePreviewLayout")
     config.userContentController.addUserScript(Self.windowIntegration)
     webView = WKWebView(frame: .zero, configuration: config)
+    contentView = WorkspaceContentView(workspace: webView)
+    preview.contentView = contentView
     super.init()
     webView.navigationDelegate = self
     webView.uiDelegate = WebPageHost.shared
@@ -51,11 +62,17 @@ final class WorkspacePage: NSObject, WKNavigationDelegate {
       decisionHandler(.allow)
       return
     }
-    // Frames inside the workspace (the Browser panel's localhost preview,
-    // srcdoc/blob previews) may load anything; only the top-level page is
-    // pinned to the workspace UI.
     if let frame = navigationAction.targetFrame, !frame.isMainFrame {
-      decisionHandler(.allow)
+      // The preview panel renders loopback pages in a separate web view in this window.
+      let source = navigationAction.sourceFrame
+      let initiator = source.securityOrigin
+      if source.isMainFrame,
+         initiator.protocol == url.scheme, initiator.host == url.host, initiator.port == url.port,
+         let destination, BrowserWindow.isLocalPreview(destination) {
+        decisionHandler(.cancel)
+      } else {
+        decisionHandler(.allow)
+      }
       return
     }
     decisionHandler(.cancel)
@@ -118,6 +135,7 @@ final class WorkspacePage: NSObject, WKNavigationDelegate {
       `;
       document.head.append(style);
       \(WorkspaceDragRegions.script)
+      \(WorkspacePreview.integration)
       \(WorkspacePage.profileAndStartupScript)
       }
       """,

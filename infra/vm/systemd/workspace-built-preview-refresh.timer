@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh the Layero frontend preview after code updates
+
+[Timer]
+OnStartupSec=10s
+OnUnitInactiveSec=2min
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target
