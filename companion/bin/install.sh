@@ -39,7 +39,7 @@ if [ "$ROOT" != "$SHARE" ]; then
 fi
 copy_runtime_files "$RUNTIME" "$SHARE"
 
-chmod 755 "$SHARE/bin/"*.sh "$SHARE/bin/lib/"*.sh "$SHARE/bin/lib/"*.py 2>/dev/null || true
+chmod 755 "$SHARE/bin/"*.sh "$SHARE/bin/workspace-run-"* "$SHARE/bin/lib/"*.sh "$SHARE/bin/lib/"*.py 2>/dev/null || true
 chmod 755 "$SHARE/app/Companion.app/Contents/MacOS/companion"
 
 # Optional interactive identity. The app prompts on first launch by default.
@@ -53,7 +53,9 @@ if [ "${SKIP_IDENTITY:-1}" != "1" ]; then
 fi
 
 install -m 755 "$SHARE/bin/cloudcli-build-agent" "$HOME/.local/bin/cloudcli-build-agent"
-install -m 755 "$SHARE/bin/workspace-run-checks" "$HOME/.local/bin/workspace-run-checks"
+for job in workspace-run-job workspace-run-checks workspace-run-deploy; do
+  install -m 755 "$SHARE/bin/$job" "$HOME/.local/bin/$job"
+done
 install -m 755 "$SHARE/bin/start-companion.sh" "$HOME/.local/bin/layero-workspace"
 install -m 755 "$SHARE/bin/stop-workspace.sh" "$HOME/.local/bin/layero-workspace-stop"
 

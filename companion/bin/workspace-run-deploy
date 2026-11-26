@@ -1,0 +1,71 @@
+#!/bin/bash
+# Runs on this Mac inside a Woodpecker local step: builds origin/main of the
+# UI and ships it to the workspace VM.
+#
+# The build happens in its own worktree (~/.cache/layero-workspace/ship), never
+# in the developer's checkout, so a deploy does not switch their branch or
+# touch their edits. The VM side (workspace-promote-release) serialises
+# deploys, refuses an older commit, checks dependencies and rolls back a
+# release whose smoke test fails.
+set -euo pipefail
+JOB_LIB="$(cd "$(dirname "$0")" && pwd)/lib/workspace-job-env.sh"
+[ -f "$JOB_LIB" ] || JOB_LIB="/Users/$(/usr/bin/id -un)/.local/share/cloudcli-companion/bin/lib/workspace-job-env.sh"
+# shellcheck source=lib/workspace-job-env.sh
+source "$JOB_LIB"
+
+REF="${WORKSPACE_DEPLOY_REF:-origin/main}"
+SHIP="${WORKSPACE_SHIP_DIR:-$HOME/.cache/layero-workspace/ship}"
+SSH_CONFIG="${HOME}/.config/layero-workspace/ssh/config"
+SSH_HOST="${WORKSPACE_DEPLOY_SSH_HOST:-layero-workspace}"
+REMOTE_RELEASES='~/.local/share/cloudcli-releases'
+ssh_vm() { ssh -F "$SSH_CONFIG" -o BatchMode=yes "$SSH_HOST" "$@"; }
+
+echo "workspace-run-deploy owner=$JOB_OWNER checkout=$JOB_CHECKOUT ref=$REF"
+
+git -C "$JOB_CHECKOUT" fetch -q origin
+SHA="$(git -C "$JOB_CHECKOUT" rev-parse "$REF^{commit}")"
+
+if [ ! -e "$SHIP/.git" ]; then
+  mkdir -p "$(dirname "$SHIP")"
+  git -C "$JOB_CHECKOUT" worktree prune
+  git -C "$JOB_CHECKOUT" worktree add --detach "$SHIP" "$SHA"
+else
+  git -C "$SHIP" checkout -q --detach --force "$SHA"
+  git -C "$SHIP" clean -qfdx -e node_modules
+fi
+cd "$SHIP"
+echo "building $(git log -1 --format='%h %s')"
+
+# Reinstall only when the lockfile changed since the last deploy.
+LOCK_HASH="$(shasum -a 256 package-lock.json | cut -d' ' -f1)"
+if [ ! -d node_modules ] || [ "$(cat node_modules/.ship-lock-hash 2>/dev/null)" != "$LOCK_HASH" ]; then
+  npm ci --no-audit --no-fund
+  echo "$LOCK_HASH" > node_modules/.ship-lock-hash
+fi
+npm run build
+
+ASSET="$(grep -o 'assets/index-[^"]*\.js' dist/index.html | head -n1)"
+if [ -z "$ASSET" ]; then
+  echo "no index asset in dist/index.html" >&2
+  exit 1
+fi
+printf '%s\n%s\n' "$SHA" "$ASSET" > SHIPPED_FROM
+
+STAGE="workspace-ui.incoming-$SHA"
+echo "==> rsync → $SSH_HOST:$REMOTE_RELEASES/$STAGE"
+ssh_vm "mkdir -p $REMOTE_RELEASES/$STAGE"
+rsync -a --delete -e "ssh -F $SSH_CONFIG -o BatchMode=yes" \
+  dist dist-server package.json package-lock.json SHIPPED_FROM \
+  "$SSH_HOST:$REMOTE_RELEASES/$STAGE/"
+
+echo "==> promote $SHA"
+status=0
+ssh_vm "\$HOME/.local/bin/workspace-promote-release $SHA" || status=$?
+case "$status" in
+  0) echo "shipped $ASSET ($SHA)" ;;
+  3) echo "VM refused the release (see message above)" >&2 ;;
+  4) echo "smoke test failed on the VM; the previous release is back" >&2 ;;
+  5) echo "another deploy is running on the VM; try again later" >&2 ;;
+  *) echo "promote failed with exit $status" >&2 ;;
+esac
+exit "$status"

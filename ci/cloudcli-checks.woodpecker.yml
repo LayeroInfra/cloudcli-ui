@@ -1,0 +1,27 @@
+# Source of truth for `.woodpecker.yml` in Forgejo `buildadmin/cloudcli-checks`
+# on the workspace VM. That repo only carries this file; the operator copies
+# it there after a change here. The steps run on the owner's Mac
+# (backend=local), so the commands live in companion/bin/workspace-run-*.
+#
+# Variables, set by the CloudUI builds API or ~/.local/bin/workspace-trigger-build:
+#   WORKSPACE_OWNER        CloudUI username; routes the run to that Mac's agent
+#   WORKSPACE_JOB          checks | deploy
+#   WORKSPACE_BUILD_TITLE  short name of the run, shown in the Builds drawer
+when:
+  # Manual only: a push carries no WORKSPACE_OWNER, so no agent would ever
+  # take it and it would sit pending forever.
+  - event: manual
+    evaluate: 'WORKSPACE_OWNER != ""'
+
+skip_clone: true
+
+labels:
+  backend: local
+  owner: ${WORKSPACE_OWNER}
+
+steps:
+  - name: workspace-job
+    image: bash
+    commands:
+      - set -euo pipefail
+      - /Users/$(/usr/bin/id -un)/.local/bin/workspace-run-job

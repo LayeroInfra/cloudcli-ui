@@ -44,7 +44,7 @@ def running_builds():
     out = sh(["/bin/ps", "-ax", "-o", "pid=,etime=,command="])
     rows = []
     for line in out.splitlines():
-        if "workspace-run-checks" in line or "woodpecker-local-" in line or (
+        if "workspace-run-" in line or "woodpecker-local-" in line or (
             "tsx --tsconfig" in line and "claude-sessions.test" in line
         ) or ("vitest run" in line and "sidebarAccount" in line):
             parts = line.strip().split(None, 2)

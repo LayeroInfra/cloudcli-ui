@@ -1,0 +1,138 @@
+#!/bin/bash
+# VM side of a workspace-ui deploy. Installed by the operator as
+# ~/.local/bin/workspace-promote-release; called over SSH by
+# workspace-run-deploy on a Mac after it rsynced a build into
+# ~/.local/share/cloudcli-releases/workspace-ui.incoming-<sha>.
+#
+#   workspace-promote-release <sha>
+#
+# One deploy at a time (flock), never an older commit over a newer one, the
+# installed node_modules must match the build's package-lock, and a release
+# that fails its smoke test is rolled back to the previous one.
+#
+# Exit codes: 0 shipped (or already live), 2 usage, 3 refused (older commit,
+# dependency change, bad stage), 4 smoke failed and rolled back, 5 lock busy.
+set -euo pipefail
+
+SHA="${1:-}"
+if ! [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "usage: workspace-promote-release <40-hex commit sha>" >&2
+  exit 2
+fi
+
+RELEASES="${WORKSPACE_RELEASES_DIR:-$HOME/.local/share/cloudcli-releases}"
+LIVE="$RELEASES/workspace-ui"
+PREV="$RELEASES/workspace-ui.prev"
+INCOMING="$RELEASES/workspace-ui.incoming-$SHA"
+# Where the release's node_modules come from; its package-lock is what they were installed from.
+DEPS_ROOT="${WORKSPACE_DEPS_ROOT:-$HOME/src/cloudcli-ui}"
+# A clone of the UI repo, used to tell whether one commit is newer than another.
+GIT_ROOT="${WORKSPACE_GIT_ROOT:-/srv/Layero/cloud-cli}"
+SERVICE="${WORKSPACE_SERVICE:-frontend-cloudcli}"
+PORT="${WORKSPACE_SERVICE_PORT:-3002}"
+LOCK="$HOME/.local/state/workspace-release.lock"
+LOG="$HOME/.local/state/workspace-release.log"
+
+mkdir -p "$(dirname "$LOCK")"
+log() { echo "$(date -Iseconds) $*" | tee -a "$LOG"; }
+
+exec 9>"$LOCK"
+if ! flock -w "${WORKSPACE_DEPLOY_LOCK_WAIT:-600}" 9; then
+  echo "another deploy holds $LOCK" >&2
+  exit 5
+fi
+
+stage_cleanup() { rm -rf "$INCOMING"; }
+
+if [ ! -d "$INCOMING/dist" ] || [ ! -d "$INCOMING/dist-server" ] || [ ! -f "$INCOMING/SHIPPED_FROM" ]; then
+  log "refused $SHA: incomplete stage $INCOMING"
+  exit 3
+fi
+if [ "$(head -n1 "$INCOMING/SHIPPED_FROM")" != "$SHA" ]; then
+  log "refused $SHA: stage says $(head -n1 "$INCOMING/SHIPPED_FROM")"
+  stage_cleanup
+  exit 3
+fi
+
+CURRENT="$(head -n1 "$LIVE/SHIPPED_FROM" 2>/dev/null || true)"
+if [ "$CURRENT" = "$SHA" ]; then
+  log "already live $SHA"
+  stage_cleanup
+  exit 0
+fi
+
+# Never an older commit over a newer one: the race that put 1b50d9b8 over
+# 894be940 on 2026-11-26. WORKSPACE_DEPLOY_ALLOW_OLDER=1 is the operator's way back.
+if [ -n "$CURRENT" ] && [ "${WORKSPACE_DEPLOY_ALLOW_OLDER:-0}" != 1 ]; then
+  git -C "$GIT_ROOT" fetch -q origin 2>/dev/null || true
+  if ! git -C "$GIT_ROOT" cat-file -e "$SHA^{commit}" 2>/dev/null; then
+    log "refused $SHA: unknown commit in $GIT_ROOT (push it first)"
+    stage_cleanup
+    exit 3
+  fi
+  if git -C "$GIT_ROOT" cat-file -e "$CURRENT^{commit}" 2>/dev/null &&
+    ! git -C "$GIT_ROOT" merge-base --is-ancestor "$CURRENT" "$SHA"; then
+    log "refused $SHA: live $CURRENT is not its ancestor"
+    stage_cleanup
+    exit 3
+  fi
+fi
+
+# The release runs on DEPS_ROOT's node_modules; a build made against another
+# lockfile would start with missing or mismatched packages.
+if [ -f "$INCOMING/package-lock.json" ] && [ "${WORKSPACE_DEPLOY_DEPS_OK:-0}" != 1 ] &&
+  ! cmp -s "$INCOMING/package-lock.json" "$DEPS_ROOT/package-lock.json"; then
+  log "refused $SHA: package-lock.json differs from $DEPS_ROOT (operator: npm ci there, then redeploy)"
+  stage_cleanup
+  exit 3
+fi
+
+# Assemble the new release beside the live one: the build, plus what the
+# build does not carry (node_modules link, plugins, public).
+NEXT="$RELEASES/workspace-ui.next"
+rm -rf "$NEXT"
+mv "$INCOMING" "$NEXT"
+ln -sfn "$DEPS_ROOT/node_modules" "$NEXT/node_modules"
+for keep in plugins public; do
+  if [ ! -e "$NEXT/$keep" ] && [ -e "$LIVE/$keep" ]; then
+    cp -a "$LIVE/$keep" "$NEXT/$keep"
+  fi
+done
+if [ ! -f "$NEXT/package.json" ] && [ -f "$LIVE/package.json" ]; then cp -a "$LIVE/package.json" "$NEXT/package.json"; fi
+
+EXPECTED_ASSET="$(sed -n 2p "$NEXT/SHIPPED_FROM")"
+
+smoke() {
+  local i code asset
+  for i in $(seq 1 30); do
+    if systemctl --user is-active --quiet "$SERVICE"; then
+      code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/health" || true)"
+      if [ "$code" = 200 ]; then
+        asset="$(curl -s "http://127.0.0.1:$PORT/" | grep -o 'assets/index-[^"]*\.js' | head -n1 || true)"
+        if [ -z "$EXPECTED_ASSET" ] || [ "$asset" = "$EXPECTED_ASSET" ]; then
+          return 0
+        fi
+      fi
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+rm -rf "$PREV"
+mv "$LIVE" "$PREV"
+mv "$NEXT" "$LIVE"
+# A failed restart is judged by the smoke test, which then rolls back.
+systemctl --user restart "$SERVICE" || true
+
+if smoke; then
+  log "shipped $SHA $EXPECTED_ASSET (was ${CURRENT:-none})"
+  exit 0
+fi
+
+FAILED="$RELEASES/workspace-ui.failed-$(date +%Y%m%d-%H%M%S)"
+mv "$LIVE" "$FAILED"
+mv "$PREV" "$LIVE"
+systemctl --user restart "$SERVICE" || true
+log "smoke failed for $SHA; rolled back to ${CURRENT:-previous}, kept $FAILED"
+exit 4
