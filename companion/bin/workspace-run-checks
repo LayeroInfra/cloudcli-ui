@@ -9,7 +9,7 @@ JOB_LIB="$(cd "$(dirname "$0")" && pwd)/lib/workspace-job-env.sh"
 source "$JOB_LIB"
 
 cd "$JOB_CHECKOUT"
-export PATH="${JOB_CHECKOUT}/node_modules/.bin:$PATH"
+export PATH="${HOME}/.local/lib/layero-node/bin:${JOB_CHECKOUT}/node_modules/.bin:$PATH"
 echo "workspace-run-checks owner=$JOB_OWNER checkout=$JOB_CHECKOUT commit=$(git rev-parse --short HEAD 2>/dev/null || echo '?')$(git diff --quiet 2>/dev/null || echo '+dirty')"
 # The Companion app is Swift and only compiles on a Mac; this is its one check.
 swiftc -typecheck companion/app/CompanionApp/*.swift

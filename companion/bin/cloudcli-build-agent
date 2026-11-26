@@ -31,6 +31,8 @@ export WOODPECKER_AGENT_LABELS="owner=${OWNER},backend=local"
 export WOODPECKER_CONNECT_RETRY_COUNT=20
 export CLOUDCLI_CHECKOUT="${CHECKOUT}"
 export WORKSPACE_OWNER="${OWNER}"
-export PATH="/opt/homebrew/bin:/usr/bin:/bin:$PATH"
+# Prefer the pinned Node from install.sh: Homebrew's Node breaks native
+# modules (better-sqlite3) rebuilt for infra/versions.env.
+export PATH="${HOME}/.local/lib/layero-node/bin:/opt/homebrew/bin:/usr/bin:/bin:$PATH"
 echo "$(date -Iseconds) agent start owner=$OWNER checkout=$CHECKOUT" >>"$LOG_DIR/agent.log"
 exec "$ROOT/bin/woodpecker-agent" >>"$LOG_DIR/agent.log" 2>&1
