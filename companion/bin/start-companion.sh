@@ -27,7 +27,10 @@ source "$ROOT/bin/lib/auth-login.sh"
 source "$ROOT/bin/lib/trust-cert.sh"
 
 mkdir -p "$LOG_DIR" "$HOME/.local/bin" "$HOME/.config/layero-workspace"
-IFS= read -r -t 10 cached_token || exit 1
+if ! IFS= read -r -t 10 cached_token; then
+  echo "Companion did not receive startup data from the app" >&2
+  exit 1
+fi
 
 load_session() {
   OWNER="$(identity_owner)"
