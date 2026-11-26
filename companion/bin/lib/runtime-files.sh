@@ -35,10 +35,16 @@ require_runtime_files() {
 
 copy_runtime_files() {
   local source="$1" target="$2"
-  [ "$source" != "$target" ] || return 0
+  [ ! -e "$target" ] || [ ! "$source" -ef "$target" ] || return 0
   mkdir -p "$target/bin" "$target/agent"
   install -d -m 700 "$target/secrets/ssh"
   install -m 600 "$source/secrets/ssh/id_ed25519" "$target/secrets/ssh/id_ed25519"
+  local metadata
+  for metadata in users known_hosts; do
+    if [ -s "$source/secrets/ssh/$metadata" ]; then
+      install -m 600 "$source/secrets/ssh/$metadata" "$target/secrets/ssh/$metadata"
+    fi
+  done
   install -m 600 "$source/agent/agent.secret" "$target/agent/agent.secret"
   install -m 755 "$source/bin/woodpecker-agent" "$target/bin/woodpecker-agent"
 }

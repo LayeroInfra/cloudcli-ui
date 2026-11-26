@@ -164,21 +164,23 @@ identity_workspace_host() {
 
 identity_ssh_user() {
   local workspace_host="$1" ssh_user
+  local accounts
+  for accounts in "$IDENTITY_DIR/ssh-users" "$(_identity_root)/secrets/ssh/users"; do
+    if [ -f "$accounts" ]; then
+      ssh_user="$(awk -v host="$workspace_host" '$1 == host { print $2; exit }' "$accounts")"
+      if [ -n "$ssh_user" ]; then
+        printf '%s\n' "$ssh_user"
+        return
+      fi
+    fi
+  done
+
   if [ "$workspace_host" = "$(_identity_read workspaceHost)" ]; then
     ssh_user="$(_identity_read sshUser)"
     if [ -n "$ssh_user" ]; then
       printf '%s\n' "$ssh_user"
       return
     fi
-  fi
-
-  local accounts="$IDENTITY_DIR/ssh-users"
-  if [ -f "$accounts" ]; then
-    ssh_user="$(awk -v host="$workspace_host" '$1 == host { print $2; exit }' "$accounts")"
-  fi
-  if [ -n "${ssh_user:-}" ]; then
-    printf '%s\n' "$ssh_user"
-    return
   fi
 
   # Migrate the SSH login previously configured for this workspace on this Mac.
