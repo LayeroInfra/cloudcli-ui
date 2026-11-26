@@ -84,6 +84,7 @@ const header = () => (
       onOpenSession={() => undefined}
       background={{ open: false, onToggle: () => undefined, runningCount: 0 }}
       builds={{ open: false, onToggle: () => undefined, activeCount: 0 }}
+      memory={{ open: false, onToggle: () => undefined }}
       files={{ open: false, onToggle: () => undefined }}
       terminal={{ open: false, onToggle: () => undefined }}
       browser={{ open: false, onToggle: () => undefined }}

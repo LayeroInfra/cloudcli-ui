@@ -15,6 +15,7 @@ import TerminalDock from '@/modules/project-workspace/TerminalDock';
 import { useWorkspacePanels } from '@/modules/project-workspace/hooks/useWorkspacePanels';
 import { useWorkspaceBuilds } from '@/modules/project-workspace/hooks/useWorkspaceBuilds';
 import WorkspaceBuildsPanel from '@/modules/project-workspace/WorkspaceBuildsPanel';
+import AgentMemoryPanel from '@/modules/project-workspace/AgentMemoryPanel';
 import WorkspaceHeader from '@/modules/project-workspace/WorkspaceHeader';
 import WorkspaceStateView from '@/modules/project-workspace/WorkspaceStateView';
 import WorkspaceErrorBoundary from '@/modules/project-workspace/WorkspaceErrorBoundary';
@@ -88,6 +89,7 @@ function WorkspaceMain({
 
   const closeBackgroundPanel = useCallback(() => setPanelOpen('background', false), [setPanelOpen]);
   const closeBuildsPanel = useCallback(() => setPanelOpen('builds', false), [setPanelOpen]);
+  const closeMemoryPanel = useCallback(() => setPanelOpen('memory', false), [setPanelOpen]);
   // The signed-in user's Woodpecker builds, for the builds card and its header badge.
   const workspaceBuilds = useWorkspaceBuilds(openPanels.builds);
   const closeTerminal = useCallback(() => setPanelOpen('terminal', false), [setPanelOpen]);
@@ -169,6 +171,7 @@ function WorkspaceMain({
         browser={{ open: openPanels.browser, onToggle: () => togglePanel('browser') }}
         files={{ open: openPanels.files, onToggle: () => togglePanel('files') }}
         builds={{ open: openPanels.builds, onToggle: () => togglePanel('builds'), activeCount: workspaceBuilds.activeCount }}
+        memory={{ open: openPanels.memory, onToggle: () => togglePanel('memory') }}
       />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -238,6 +241,19 @@ function WorkspaceMain({
                 isTriggering={workspaceBuilds.isTriggering}
                 onTrigger={() => void workspaceBuilds.trigger()}
                 onRefresh={() => void workspaceBuilds.refresh()}
+              />
+            </div>
+          )}
+
+          {/* Agent memory is read at length and edited, so it takes a wider
+              card over the right of the chat, above the other cards. */}
+          {openPanels.memory && (
+            <div className="pointer-events-none absolute bottom-3 right-3 top-3 z-40 flex w-[min(40rem,calc(100%-1.5rem))] flex-col">
+              <AgentMemoryPanel
+                open={openPanels.memory}
+                onClose={closeMemoryPanel}
+                projectPath={selectedProject.fullPath || null}
+                onOpenFile={openFile}
               />
             </div>
           )}

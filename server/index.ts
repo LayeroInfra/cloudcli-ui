@@ -30,6 +30,7 @@ import {
 } from './modules/auth/index.js';
 import { taskmasterRoutes } from './modules/taskmaster/index.js';
 import { workspaceBuildsRoutes } from './modules/workspace-builds/index.js';
+import { agentMemoryRoutes } from './modules/agent-memory/index.js';
 import { commandsRoutes } from './modules/commands/index.js';
 import { settingsRoutes } from './modules/settings/index.js';
 import { createSystemModule } from './modules/system/index.js';
@@ -268,6 +269,8 @@ app.use('/api/providers', authenticateToken, parseAuthenticatedBody, providerRou
 app.use('/api/scheduled-messages', authenticateToken, parseAuthenticatedBody, scheduledMessagesRoutes);
 // The signed-in user's own Woodpecker builds; Woodpecker itself stays on loopback.
 app.use('/api/workspace/builds', authenticateToken, parseAuthenticatedBody, workspaceBuildsRoutes);
+// Claude's auto-memory and the global CLAUDE.md, shared by everyone on this workspace.
+app.use('/api/workspace/memory', authenticateToken, parseAuthenticatedBody, agentMemoryRoutes);
 
 // Agent API Routes (uses API key authentication)
 app.use('/api/agent', parsePublicBody, agentRoutes);
