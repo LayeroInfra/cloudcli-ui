@@ -37,6 +37,11 @@ export function createWorkspaceBuildsRouter(service = workspaceBuildsService) {
     res.json(createApiSuccessResponse(await service.getBuild(readUsername(req), number, stepId)));
   }));
 
+  router.post('/:number/cancel', asyncHandler(async (req: Request, res: Response) => {
+    const number = readPositiveInt(req.params.number, 'number');
+    res.json(createApiSuccessResponse(await service.cancelBuild(readUsername(req), number)));
+  }));
+
   // The body may name the run; anything else in it (an `owner`, say) is ignored.
   router.post('/', asyncHandler(async (req: Request, res: Response) => {
     const title = typeof req.body?.title === 'string' ? req.body.title : undefined;

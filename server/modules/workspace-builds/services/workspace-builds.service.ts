@@ -105,7 +105,7 @@ class WoodpeckerError extends AppError {
   }
 }
 
-async function woodpecker<T>(pathname: string, init: { method?: 'GET' | 'POST'; body?: unknown } = {}): Promise<T> {
+async function woodpecker<T>(pathname: string, init: { method?: 'GET' | 'POST'; body?: unknown; allowEmpty?: boolean } = {}): Promise<T> {
   const token = await source.readToken();
   if (!token) throw new WoodpeckerError('Woodpecker is not configured on this server (no token).');
   const controller = new AbortController();
@@ -120,6 +120,7 @@ async function woodpecker<T>(pathname: string, init: { method?: 'GET' | 'POST'; 
       signal: controller.signal,
     });
     if (!response.ok) throw new WoodpeckerError(`Woodpecker answered ${response.status}.`, response.status);
+    if (init.allowEmpty) return (await response.json().catch(() => null)) as T;
     return (await response.json()) as T;
   } catch (error) {
     if (error instanceof AppError) throw error;
@@ -184,6 +185,25 @@ function decodeLogLine(line: WoodpeckerLogLine): string {
 
 const notFound = () => new AppError('Build not found.', { code: 'BUILD_NOT_FOUND', statusCode: 404 });
 
+/** The pipeline, when it exists and belongs to this user; anything else reads as not found. */
+async function ownPipeline(username: string, number: number): Promise<{ id: number; pipeline: WoodpeckerPipeline }> {
+  const owner = normalizeWorkspaceOwner(username);
+  if (!owner) throw notFound();
+  const id = await repoId();
+  let pipeline: WoodpeckerPipeline;
+  try {
+    pipeline = await woodpecker<WoodpeckerPipeline>(`/api/repos/${id}/pipelines/${number}`);
+  } catch (error) {
+    if (error instanceof WoodpeckerError && error.upstreamStatus === 404) throw notFound();
+    throw error;
+  }
+  if (ownerOf(pipeline) !== owner) throw notFound();
+  return { id, pipeline };
+}
+
+/** Woodpecker states in which a build can still be cancelled. */
+const CANCELLABLE_STATUSES = new Set(['pending', 'running', 'blocked']);
+
 /**
  * Builds of the CloudUI checks pipeline, scoped to one user: every read and
  * trigger takes the owner from the authenticated session. This is a view
@@ -207,17 +227,7 @@ export const workspaceBuildsService = {
    * reads as not found, so its existence is not revealed either.
    */
   async getBuild(username: string, number: number, stepId?: number): Promise<WorkspaceBuildDetail> {
-    const owner = normalizeWorkspaceOwner(username);
-    if (!owner) throw notFound();
-    const id = await repoId();
-    let pipeline: WoodpeckerPipeline;
-    try {
-      pipeline = await woodpecker<WoodpeckerPipeline>(`/api/repos/${id}/pipelines/${number}`);
-    } catch (error) {
-      if (error instanceof WoodpeckerError && error.upstreamStatus === 404) throw notFound();
-      throw error;
-    }
-    if (ownerOf(pipeline) !== owner) throw notFound();
+    const { id, pipeline } = await ownPipeline(username, number);
     const steps: WorkspaceBuildStep[] = (pipeline.workflows ?? []).flatMap((workflow) => (workflow.children ?? []).map((step) => ({
       id: step.id,
       name: step.name ?? '',
@@ -262,6 +272,19 @@ export const workspaceBuildsService = {
     });
     listCache = null;
     return { number: typeof pipeline?.number === 'number' ? pipeline.number : null };
+  },
+
+  /**
+   * Cancels one of this user's queued or running builds: the way out of a
+   * build no Mac will ever pick up. A finished build is left as it is.
+   */
+  async cancelBuild(username: string, number: number): Promise<{ cancelled: boolean }> {
+    const { id, pipeline } = await ownPipeline(username, number);
+    if (!CANCELLABLE_STATUSES.has(pipeline.status)) return { cancelled: false };
+    // Woodpecker answers with no body.
+    await woodpecker<unknown>(`/api/repos/${id}/pipelines/${number}/cancel`, { method: 'POST', allowEmpty: true });
+    listCache = null;
+    return { cancelled: true };
   },
 
   /** Test hook: replace the Woodpecker endpoint, token and fetch; no argument restores the defaults. */

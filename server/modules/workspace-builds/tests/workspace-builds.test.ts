@@ -28,6 +28,7 @@ type Created = { branch: string; variables: Record<string, string> };
 function fakeWoodpecker(pipelines: unknown[] = PIPELINES) {
   const calls: string[] = [];
   const triggered: Created[] = [];
+  const cancelled: number[] = [];
   workspaceBuildsService.setSource({
     serverUrl: 'http://woodpecker.test',
     repo: 'buildadmin/cloudcli-checks',
@@ -37,6 +38,10 @@ function fakeWoodpecker(pipelines: unknown[] = PIPELINES) {
       calls.push(url);
       assert.equal(init?.headers?.Authorization, 'Bearer token');
       const path = url.replace('http://woodpecker.test', '');
+      if (init?.method === 'POST' && /^\/api\/repos\/1\/pipelines\/\d+\/cancel$/.test(path)) {
+        cancelled.push(Number(path.split('/')[5]));
+        return { ok: true, status: 204, json: async () => { throw new SyntaxError('Unexpected end of JSON input'); } };
+      }
       if (init?.method === 'POST' && path === '/api/repos/1/pipelines') {
         triggered.push(JSON.parse(init.body ?? '{}') as Created);
         return { ok: true, status: 200, json: async () => ({ number: 14, status: 'pending' }) };
@@ -51,7 +56,7 @@ function fakeWoodpecker(pipelines: unknown[] = PIPELINES) {
       return { ok: body !== null, status: body === null ? 404 : 200, json: async () => body };
     },
   });
-  return { calls, triggered };
+  return { calls, triggered, cancelled };
 }
 
 test('owners are normalised the way workspace-trigger-build normalises them', () => {
@@ -128,6 +133,18 @@ test('a build is started for the session owner only, as a titled checks run, and
   }
 });
 
+test('a user cancels their own queued or running build, not a finished one or another user\'s', async () => {
+  const { cancelled } = fakeWoodpecker();
+  try {
+    assert.deepEqual(await workspaceBuildsService.cancelBuild('alice', 13), { cancelled: true });
+    assert.deepEqual(await workspaceBuildsService.cancelBuild('bob', 12), { cancelled: false });
+    await assert.rejects(workspaceBuildsService.cancelBuild('alice', 12), { code: 'BUILD_NOT_FOUND', statusCode: 404 });
+    assert.deepEqual(cancelled, [13]);
+  } finally {
+    workspaceBuildsService.setSource();
+  }
+});
+
 test('titles are one line of at most 80 characters, with a default per job', () => {
   assert.equal(normalizeBuildTitle(undefined, 'checks'), 'Manual checks');
   assert.equal(normalizeBuildTitle('   ', 'deploy'), 'Deploy workspace-ui');
@@ -188,6 +205,9 @@ test('the HTTP API scopes every call to the authenticated user, whatever the req
     const started = await as('alice', '', { method: 'POST', body: JSON.stringify({ owner: 'bob', title: 'auth login form' }) });
     assert.equal(started.status, 202);
     assert.deepEqual(triggered.map((run) => [run.variables.WORKSPACE_OWNER, run.variables.WORKSPACE_BUILD_TITLE]), [['alice', 'auth login form']]);
+
+    assert.equal((await as('bob', '/13/cancel', { method: 'POST' })).status, 404);
+    assert.equal((await as('alice', '/13/cancel', { method: 'POST' })).status, 200);
 
     assert.equal((await as('')).status, 401);
   } finally {

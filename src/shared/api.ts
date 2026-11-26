@@ -306,7 +306,8 @@ export const api = {
   workspaceBuilds: {
     list: (options: ApiRequestOptions = {}) => get('/api/workspace/builds', options),
     get: (number: number, options: ApiRequestOptions = {}) => get(`/api/workspace/builds/${number}`, options),
-    trigger: () => post('/api/workspace/builds', {}),
+    trigger: (title?: string) => post('/api/workspace/builds', title ? { title } : {}),
+    cancel: (number: number) => post(`/api/workspace/builds/${number}/cancel`, {}),
   },
   /** Claude's auto-memory across projects and the global CLAUDE.md; the same for every user of the workspace. */
   agentMemory: {

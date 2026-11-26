@@ -63,9 +63,27 @@ function StatusIcon({ status }: { status: string }) {
   return <Icon className={cn('h-4 w-4 flex-shrink-0', look.className, look.spin && 'animate-spin')} aria-hidden="true" />;
 }
 
-/** The steps and log tail of one build, refetched every 3 s while it is still active. */
-function BuildDetail({ number, active }: { number: number; active: boolean }) {
+/** The steps and log tail of one build, refetched every 3 s while it is still active; an active one can be cancelled. */
+function BuildDetail({ number, active, onChanged }: { number: number; active: boolean; onChanged: () => void }) {
   const { t } = useTranslation();
+  // Set while the cancel request is in flight.
+  const [isCancelling, setIsCancelling] = useState(false);
+  // Why cancelling failed, if it did.
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  const cancel = async () => {
+    setIsCancelling(true);
+    setCancelError(null);
+    try {
+      const response = await api.workspaceBuilds.cancel(number);
+      if (!response.ok) setCancelError(t('workspace.builds.cancelFailed', { defaultValue: 'Could not cancel this build.' }));
+      else onChanged();
+    } catch {
+      setCancelError(t('workspace.builds.cancelFailed', { defaultValue: 'Could not cancel this build.' }));
+    } finally {
+      setIsCancelling(false);
+    }
+  };
   // The last detail answer; null until the first one arrives.
   const [detail, setDetail] = useState<WorkspaceBuildDetail | null>(null);
   // Why the detail could not be read, if it could not.
@@ -103,6 +121,20 @@ function BuildDetail({ number, active }: { number: number; active: boolean }) {
   const logStep = detail.steps.find((step) => step.id === detail.logStepId);
   return (
     <div className="space-y-2 px-3 pb-3" data-testid={`build-detail-${number}`}>
+      {active && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void cancel()}
+            disabled={isCancelling}
+            className="flex h-6 items-center gap-1 rounded-md border border-border px-2 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-60"
+          >
+            {isCancelling ? <Loader2 className="h-3 w-3 animate-spin" /> : <Ban className="h-3 w-3" />}
+            {t('workspace.builds.cancel', { defaultValue: 'Cancel build' })}
+          </button>
+          {cancelError && <span className="text-[11px] text-destructive">{cancelError}</span>}
+        </div>
+      )}
       {detail.steps.length > 0 && (
         <ul className="space-y-1">
           {detail.steps.map((step) => (
@@ -268,7 +300,7 @@ export default function WorkspaceBuildsPanel({ open, onClose, builds, error, isL
                     </span>
                     <ChevronRight className={cn('h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform', isOpen && 'rotate-90')} aria-hidden="true" />
                   </button>
-                  {isOpen && <BuildDetail number={build.number} active={active} />}
+                  {isOpen && <BuildDetail number={build.number} active={active} onChanged={onRefresh} />}
                 </li>
               );
             })}

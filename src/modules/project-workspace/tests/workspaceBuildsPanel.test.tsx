@@ -5,8 +5,8 @@ import { test, vi } from 'vitest';
 
 import type { WorkspaceBuild, WorkspaceBuildDetail } from '@/shared/types';
 
-const mocks = vi.hoisted(() => ({ get: vi.fn() }));
-vi.mock('@/shared/api', () => ({ api: { workspaceBuilds: { get: mocks.get, list: vi.fn(), trigger: vi.fn() } } }));
+const mocks = vi.hoisted(() => ({ get: vi.fn(), cancel: vi.fn() }));
+vi.mock('@/shared/api', () => ({ api: { workspaceBuilds: { get: mocks.get, cancel: mocks.cancel, list: vi.fn(), trigger: vi.fn() } } }));
 
 const { default: WorkspaceBuildsPanel } = await import('@/modules/project-workspace/WorkspaceBuildsPanel');
 
@@ -69,4 +69,15 @@ test('a build queued for minutes says the Mac has not picked it up', () => {
   const stale: WorkspaceBuild = { ...BUILDS[2], createdAt: new Date(Date.now() - 5 * 60_000).toISOString() };
   render(<WorkspaceBuildsPanel {...props({ builds: [stale] })} />);
   assert.ok(screen.getByTestId('builds-stale-pending'));
+});
+
+test('an unfolded queued build can be cancelled, then the list refreshes', async () => {
+  mocks.get.mockResolvedValue({ ok: true, json: async () => ({ data: { ...DETAIL, number: 12, status: 'pending', steps: [], logStepId: null, logTail: [] } }) });
+  mocks.cancel.mockResolvedValue({ ok: true, json: async () => ({ data: { cancelled: true } }) });
+  const onRefresh = vi.fn();
+  render(<WorkspaceBuildsPanel {...props({ builds: [BUILDS[2]], onRefresh })} />);
+  fireEvent.click(screen.getByRole('button', { name: /#12/ }));
+  fireEvent.click(await waitFor(() => screen.getByRole('button', { name: /Cancel build/ })));
+  await waitFor(() => assert.equal(onRefresh.mock.calls.length, 1));
+  assert.deepEqual(mocks.cancel.mock.calls[0], [12]);
 });
