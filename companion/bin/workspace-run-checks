@@ -16,9 +16,15 @@ swiftc -typecheck companion/app/CompanionApp/*.swift
 tsx --tsconfig server/tsconfig.json --test \
   server/modules/providers/tests/claude-sessions.test.ts \
   server/modules/providers/tests/claude-rate-limits.test.ts \
-  server/modules/workspace-builds/tests/workspace-builds.test.ts
+  server/modules/workspace-builds/tests/workspace-builds.test.ts \
+  server/shared/tests/workspace-browser.test.ts \
+  server/modules/websocket/tests/shell-websocket.service.test.ts
 # sidebarAccount.test.tsx is left out: under the Mac agent it crashes vitest's
 # worker pool (ERR_IPC_CHANNEL_CLOSED, runs #21 and #26) and fails the run.
 vitest run --pool=forks --maxWorkers=1 --fileParallelism=false \
   src/modules/project-workspace/tests/workspaceConnectionIndicator.test.tsx \
-  src/modules/project-workspace/tests/workspaceBuildsPanel.test.tsx
+  src/modules/project-workspace/tests/workspaceBuildsPanel.test.tsx \
+  src/modules/chat/tests/workspaceReferenceLinks.test.tsx \
+  src/modules/chat/tests/fileReferenceLinks.test.tsx \
+  src/modules/chat/tests/markdownFileLinks.test.tsx \
+  src/modules/site-preview/tests/openWorkspaceUrl.test.ts

@@ -12,6 +12,7 @@ import { MermaidDiagram } from '@/modules/code-editor';
 import { MarkdownImage } from '@/modules/chat/transcript/MarkdownImage';
 import { normalizeInlineCodeFences } from '@/modules/chat/utils/chatFormatting';
 import { normalizeLatexDelimiters } from '@/modules/chat/utils/latexDelimiters';
+import { remarkWorkspaceReferences } from '@/modules/chat/utils/workspaceReferences';
 import { copyTextToClipboard } from '@/shared/utils';
 import { SyntaxHighlighter } from '@/shared/syntaxHighlighter';
 import { usePaletteOps } from '@/modules/command-palette';
@@ -313,7 +314,7 @@ function MarkdownBodyRenderer({ children, breaks = false }: Omit<MarkdownProps, 
   const hasMath = useMemo(() => MATH_DELIMITER.test(content), [content]);
   const remarkPlugins = useMemo(
     () => {
-      const plugins: unknown[] = [remarkGfm, remarkTableBreaks];
+      const plugins: unknown[] = [remarkGfm, remarkTableBreaks, remarkWorkspaceReferences];
       if (hasMath) {
         plugins.push([remarkMath, { singleDollarTextMath: false }]);
       }

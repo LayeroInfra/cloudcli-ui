@@ -36,7 +36,7 @@ type ShellIncomingMessage =
   // Sent instead of starting a PTY when the project path or session id is
   // rejected, so this is the only signal that the terminal will never start.
   | { type: 'error'; message?: string }
-  | { type: 'auth_url'; url?: string }
+  | { type: 'auth_url'; url?: string; autoOpen?: boolean }
   // The app theme the Claude CLI in the pty was launched for. A running CLI
   // keeps those colours, including one a reconnect reattaches to.
   | { type: 'claude_theme'; colorScheme?: string }

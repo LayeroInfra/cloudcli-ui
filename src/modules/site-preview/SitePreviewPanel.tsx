@@ -3,6 +3,13 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type PointerE
 import { useTranslation } from 'react-i18next';
 
 import { cn } from '@/shared/utils';
+import {
+  OPEN_URL_EVENT,
+  PREVIEW_PORTS_LABEL,
+  normalizePreviewUrl,
+  previewUrlOrNull,
+  type OpenUrlEventDetail,
+} from '@/modules/site-preview/openWorkspaceUrl';
 
 type SitePreviewPanelProps = {
   open: boolean;
@@ -19,35 +26,9 @@ type PreviewTab = {
 };
 
 const HOME_URL = 'http://localhost:5174/';
-// The dev-server ports the Companion preview tunnel forwards
-// (companion/bin/start-preview-tunnel.sh), mapped to the local port that
-// reaches them. 5173 inside the workspace is served on 15173 locally.
-const TUNNELED_PORTS: Record<string, string> = { 5174: '5174', 8080: '8080', 15173: '15173', 5173: '15173' };
 const TABS_KEY = 'site-preview-tabs';
 const WIDTH_KEY = 'site-preview-width';
 const DEFAULT_WIDTH_PERCENT = 46;
-
-/**
- * Turns what the person typed or clicked into a previewable URL, or throws.
- * Only plain-http localhost on a tunneled port is allowed: anything else
- * would load from the viewer's own machine, not the workspace.
- */
-function normalizePreviewUrl(text: string): string {
-  const trimmed = text.trim();
-  const url = new URL(/^(localhost|127\.0\.0\.1)(:|\/|$)/i.test(trimmed) ? `http://${trimmed}` : trimmed);
-  if (
-    url.protocol !== 'http:'
-    || url.username
-    || url.password
-    || !['localhost', '127.0.0.1'].includes(url.hostname)
-    || !TUNNELED_PORTS[url.port]
-  ) {
-    throw new Error('not previewable');
-  }
-  url.hostname = 'localhost';
-  url.port = TUNNELED_PORTS[url.port];
-  return url.href;
-}
 
 function tabLabel(url: string): string {
   try {
@@ -161,6 +142,13 @@ export default function SitePreviewPanel({ open, onOpenChange }: SitePreviewPane
     if (id === activeId) setActiveId(remaining[Math.min(index, remaining.length - 1)].id);
   };
 
+  const showUrl = useCallback((url: string) => {
+    const existing = tabs.find((tab) => tab.history[tab.index] === url);
+    if (existing) setActiveId(existing.id);
+    else openTab(url);
+    onOpenChange(true);
+  }, [tabs, openTab, onOpenChange]);
+
   // A localhost link clicked anywhere in the app opens here instead of a new
   // browser window, which could not reach the workspace's dev server.
   useEffect(() => {
@@ -168,22 +156,27 @@ export default function SitePreviewPanel({ open, onOpenChange }: SitePreviewPane
       if (event.defaultPrevented || event.button !== 0) return;
       const anchor = (event.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
       if (!anchor || panelRef.current?.contains(anchor)) return;
-      let url: string;
-      try {
-        url = normalizePreviewUrl(anchor.href);
-      } catch {
-        return;
-      }
+      const url = previewUrlOrNull(anchor.href);
+      if (!url) return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      const existing = tabs.find((tab) => tab.history[tab.index] === url);
-      if (existing) setActiveId(existing.id);
-      else openTab(url);
-      onOpenChange(true);
+      showUrl(url);
     };
     document.addEventListener('click', handleClick, true);
     return () => document.removeEventListener('click', handleClick, true);
-  }, [tabs, openTab, onOpenChange]);
+  }, [showUrl]);
+
+  // openWorkspaceUrl: terminal links, `$BROWSER` from the workspace, chat paths.
+  useEffect(() => {
+    const handleOpen = (event: Event) => {
+      const url = previewUrlOrNull((event as CustomEvent<OpenUrlEventDetail>).detail?.url ?? '');
+      if (!url) return;
+      event.preventDefault();
+      showUrl(url);
+    };
+    window.addEventListener(OPEN_URL_EVENT, handleOpen);
+    return () => window.removeEventListener(OPEN_URL_EVENT, handleOpen);
+  }, [showUrl]);
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -192,7 +185,7 @@ export default function SitePreviewPanel({ open, onOpenChange }: SitePreviewPane
       setAddressError(null);
       addressRef.current?.blur();
     } catch {
-      setAddressError(t('workspace.browser.invalidAddress', { defaultValue: 'Only localhost on ports 5174, 8080, 5173 and 15173 can be opened.' }));
+      setAddressError(t('workspace.browser.invalidAddress', { defaultValue: `Only localhost on ports ${PREVIEW_PORTS_LABEL} can be opened.` }));
     }
   };
 

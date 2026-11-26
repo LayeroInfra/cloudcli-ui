@@ -7,6 +7,7 @@ import { WebSocket, type RawData } from 'ws';
 
 import { resolveCodexCommandLine } from '@/modules/providers/index.js';
 import { parseIncomingJsonObject, stripAnsiSequences } from '@/shared/utils.js';
+import { workspaceBrowserEnv } from '@/shared/workspace-browser.js';
 
 type ShellIncomingMessage = {
   type?: string;
@@ -658,6 +659,7 @@ export function handleShellConnection(
         const termCols = readNumber(data.cols, 80);
         const termRows = readNumber(data.rows, 24);
         const prioritizedPath = prioritizeUserNpmGlobalBin(process.env);
+        const ptyEnv: NodeJS.ProcessEnv = { ...process.env, [prioritizedPath.key]: prioritizedPath.value };
 
         shellProcess = (dependencies.spawnPty ?? pty.spawn)(shell, shellArgs, {
           name: 'xterm-256color',
@@ -665,8 +667,9 @@ export function handleShellConnection(
           rows: termRows,
           cwd: resolvedProjectPath,
           env: {
-            ...process.env,
-            [prioritizedPath.key]: prioritizedPath.value,
+            ...ptyEnv,
+            // `$BROWSER`/`xdg-open` print OPEN_URL for the client to open.
+            ...workspaceBrowserEnv(ptyEnv),
             TERM: 'xterm-256color',
             COLORTERM: 'truecolor',
             FORCE_COLOR: '3',
@@ -720,9 +723,13 @@ export function handleShellConnection(
                 return;
               }
 
-              const isNewUrl = !announcedAuthUrls.has(normalizedUrl);
+              // Keyed by autoOpen too: a dev server prints its URL (plain
+              // link) before `--open` asks for it, and that request must
+              // still open it.
+              const announcementKey = autoOpen ? `open:${normalizedUrl}` : normalizedUrl;
+              const isNewUrl = !announcedAuthUrls.has(announcementKey);
               if (isNewUrl) {
-                announcedAuthUrls.add(normalizedUrl);
+                announcedAuthUrls.add(announcementKey);
                 session.ws?.send(
                   JSON.stringify({
                     type: 'auth_url',
