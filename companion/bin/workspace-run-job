@@ -8,8 +8,9 @@ echo "workspace-run-job job=$JOB owner=${WORKSPACE_OWNER:-} title=${WORKSPACE_BU
 case "$JOB" in
   checks) exec "$HERE/workspace-run-checks" ;;
   deploy) exec "$HERE/workspace-run-deploy" ;;
+  make) exec "$HERE/workspace-run-make" ;;
   *)
-    echo "unknown WORKSPACE_JOB=$JOB (checks|deploy)" >&2
+    echo "unknown WORKSPACE_JOB=$JOB (checks|deploy|make)" >&2
     exit 2
     ;;
 esac

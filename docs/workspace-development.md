@@ -91,6 +91,32 @@ OS-пользователь `layerodev`, общие проекты, сессии
 Mac запускает **установленную** копию скрипта: после её правки на Mac нужно
 обновить runtime (`companion/bin/install.sh`).
 
+### `make` в core и cli — тоже только через Woodpecker
+
+Гейты и корпуса Layero (`make check`, `make ship`, `make e2e-*`) на VM не
+запускаются: она для них мала. Их выполняет Mac владельца:
+
+```bash
+WORKSPACE_OWNER=<owner> workspace-trigger-make core check
+WORKSPACE_OWNER=<owner> workspace-trigger-make core ship DRY=1
+WORKSPACE_OWNER=<owner> workspace-trigger-make core image C=builder TAG=v123
+```
+
+- Запуск берёт текущий коммит и ветку `/srv/Layero/<repo>` на VM;
+  незакоммиченное не уезжает (скрипт предупредит). Пушить заранее не нужно:
+  Mac забирает коммит с VM по ключу companion.
+- На Mac (`companion/bin/workspace-run-make`) — свои клоны в
+  `~/.cache/layero-workspace/make/{core,cli,frontend}`, рабочий чекаут
+  разработчика не трогается. Соседи (`../cli`, `../frontend`) — на
+  `origin/main`. Один прогон на репозиторий за раз.
+- Разрешённые цели и переменные — списки в начале `workspace-run-make`
+  (`check`, `ship`, `doctor`, `e2e-builder`, `image`…; `DRY`, `FIX`, `FORCE`,
+  `LOCAL_CORPUS`, `C`, `TAG`).
+- `make ship` пушит в GitHub доступом владельца Mac. После него rebase
+  делается в клоне на Mac — чекаут на VM подтяни: `git pull --rebase`.
+- В панели Builds такой прогон пока показан как «checks»: сервер знает только
+  `checks|deploy`. Различай по названию «make <цель> (<repo>)».
+
 ### Companion (Swift и скрипты Mac)
 
 Код — `companion/app/CompanionApp/*.swift`, скрипты — `companion/bin/`.
@@ -148,7 +174,9 @@ Mac запускает **установленную** копию скрипта:
 
 ## Открытые вопросы
 
-- В сессиях CloudUI нет `WORKSPACE_OWNER` — агент не может сам запустить прогон.
+- В сессиях CloudUI нет `WORKSPACE_OWNER` — агент не может сам запустить прогон
+  (сервер подставляет owner только в `POST /api/workspace/builds`, в окружение
+  сессии Claude и терминала не передаёт). Пока человек называет owner сам.
 - `cloudui-live` не подключён к шлюзу — правки клиента CloudUI не видны до выкатки.
 - Агент не видит панель Browser (скриншот, консоль, сеть, выбор элемента).
 - `$BROWSER` из сессии агента не открывает URL сам — только печатает.

@@ -1,0 +1,93 @@
+#!/bin/bash
+# Runs on this Mac inside a Woodpecker local step: `make <target>` of a Layero
+# repo (core, cli) on a commit taken from the workspace VM checkout.
+#
+# Set by workspace-trigger-make on the VM:
+#   WORKSPACE_MAKE_REPO    core | cli
+#   WORKSPACE_MAKE_TARGET  one of ALLOWED_TARGETS
+#   WORKSPACE_MAKE_VARS    space-separated NAME=value, NAME from ALLOWED_VARS
+#   WORKSPACE_MAKE_REF     branch of /srv/Layero/<repo> on the VM
+#   WORKSPACE_MAKE_SHA     commit to run on (must be the tip of that branch or behind it)
+#
+# The repos live in their own clones under ~/.cache/layero-workspace/make
+# (core, cli and frontend side by side, as core's Makefile expects), never in
+# the developer's checkout. The commit comes straight from the VM over the
+# companion SSH key, so nothing has to be pushed first. `make ship` pushes to
+# GitHub with this Mac's credentials, like it would from a laptop.
+set -euo pipefail
+JOB_LIB="$(cd "$(dirname "$0")" && pwd)/lib/workspace-job-env.sh"
+[ -f "$JOB_LIB" ] || JOB_LIB="/Users/$(/usr/bin/id -un)/.local/share/cloudcli-companion/bin/lib/workspace-job-env.sh"
+# shellcheck source=lib/workspace-job-env.sh
+source "$JOB_LIB"
+
+ALLOWED_REPOS=(core cli)
+ALLOWED_TARGETS=(check lint test doctor ship ship-api e2e-builder e2e-runtime image gate-report check-texts data-check gen-check)
+ALLOWED_VARS=(DRY FIX FORCE LOCAL_CORPUS C TAG)
+
+REPO="${WORKSPACE_MAKE_REPO:-}"
+TARGET="${WORKSPACE_MAKE_TARGET:-}"
+REF="${WORKSPACE_MAKE_REF:-main}"
+SHA="${WORKSPACE_MAKE_SHA:-}"
+read -r -a VARS <<< "${WORKSPACE_MAKE_VARS:-}"
+
+in_list() { local x="$1"; shift; for y in "$@"; do [ "$x" = "$y" ] && return 0; done; return 1; }
+in_list "$REPO" "${ALLOWED_REPOS[@]}" || { echo "WORKSPACE_MAKE_REPO=$REPO: allowed ${ALLOWED_REPOS[*]}" >&2; exit 2; }
+in_list "$TARGET" "${ALLOWED_TARGETS[@]}" || { echo "WORKSPACE_MAKE_TARGET=$TARGET: allowed ${ALLOWED_TARGETS[*]}" >&2; exit 2; }
+[[ "$REF" =~ ^[A-Za-z0-9._/-]+$ ]] || { echo "bad WORKSPACE_MAKE_REF" >&2; exit 2; }
+[[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "WORKSPACE_MAKE_SHA must be a 40-hex commit" >&2; exit 2; }
+for v in ${VARS[@]+"${VARS[@]}"}; do
+  [[ "$v" =~ ^([A-Z_]+)=([A-Za-z0-9._-]*)$ ]] && in_list "${BASH_REMATCH[1]}" "${ALLOWED_VARS[@]}" ||
+    { echo "variable $v not allowed (names: ${ALLOWED_VARS[*]}, values [A-Za-z0-9._-])" >&2; exit 2; }
+done
+
+ROOT="${WORKSPACE_MAKE_DIR:-$HOME/.cache/layero-workspace/make}"
+SSH_CONFIG="${HOME}/.config/layero-workspace/ssh/config"
+SSH_HOST="${WORKSPACE_DEPLOY_SSH_HOST:-layero-workspace}"
+export GIT_SSH_COMMAND="ssh -F $SSH_CONFIG -o BatchMode=yes"
+mkdir -p "$ROOT"
+# One run per clone at a time: two jobs in one worktree would trample each other.
+# macOS has no flock(1): mkdir is the lock, a dead run's lock goes after 3 h.
+LOCK="$ROOT/.lock-$REPO.d"
+find "$LOCK" -maxdepth 0 -mmin +180 -exec rmdir {} \; 2>/dev/null || true
+until mkdir "$LOCK" 2>/dev/null; do echo "waiting for another make run in $REPO"; sleep 15; done
+trap 'rmdir "$LOCK"' EXIT
+
+clone() {  # clone <repo>: make sure ~/.cache/…/make/<repo> exists and origin is fresh
+  local dir="$ROOT/$1"
+  if [ ! -e "$dir/.git" ]; then
+    git clone -q "https://github.com/LayeroInfra/$1.git" "$dir"
+  fi
+  git -C "$dir" fetch -q --prune origin
+}
+
+clone "$REPO"
+DIR="$ROOT/$REPO"
+git -C "$DIR" fetch -q "$SSH_HOST:/srv/Layero/$REPO" "+refs/heads/$REF:refs/remotes/vm/$REF"
+git -C "$DIR" merge-base --is-ancestor "$SHA" "refs/remotes/vm/$REF" ||
+  { echo "commit $SHA is not on VM branch $REF" >&2; exit 1; }
+# A branch, not a detached HEAD: make ship refuses to run detached.
+git -C "$DIR" checkout -q --force -B workspace-make "$SHA"
+git -C "$DIR" clean -qfd   # untracked files go; ignored ones (.venv, node_modules) stay
+
+# Neighbours core's Makefile reads (../cli, ../frontend) follow origin/main.
+for n in core cli frontend; do
+  [ "$n" = "$REPO" ] && continue
+  if [ "$REPO" = core ] || [ -e "$ROOT/$n/.git" ]; then
+    clone "$n"
+    git -C "$ROOT/$n" checkout -q --force --detach origin/main
+  fi
+done
+
+cd "$DIR"
+echo "workspace-run-make owner=$JOB_OWNER repo=$REPO ref=$REF commit=$(git rev-parse --short HEAD) target=$TARGET ${VARS[*]+${VARS[*]}}"
+echo "$(git log -1 --format='%h %s')"
+export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
+status=0
+make "$TARGET" ${VARS[@]+"${VARS[@]}"} || status=$?
+
+if [ "$status" -eq 0 ] && [[ "$TARGET" == ship* ]] && ! in_list DRY=1 ${VARS[@]+"${VARS[@]}"}; then
+  git fetch -q origin
+  echo "origin/main now $(git rev-parse --short origin/main). The VM checkout may hold the pre-rebase commits:"
+  echo "  git -C /srv/Layero/$REPO pull --rebase"
+fi
+exit "$status"

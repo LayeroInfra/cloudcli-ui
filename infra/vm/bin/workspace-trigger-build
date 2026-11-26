@@ -1,7 +1,7 @@
 #!/bin/bash
 # Create a Woodpecker pipeline for WORKSPACE_OWNER from the environment only.
 # Owner is never taken from argv — use the CloudUI API (session user) instead.
-# WORKSPACE_JOB=checks|deploy selects the Mac runner (default checks).
+# WORKSPACE_JOB=checks|deploy|make selects the Mac runner (default checks).
 set -euo pipefail
 # shellcheck source=/dev/null
 source "$HOME/.local/bin/workspace-owner-lib.sh"
@@ -47,9 +47,9 @@ if [ -z "$OWNER" ]; then
 fi
 
 case "$JOB" in
-  checks|deploy) ;;
+  checks|deploy|make) ;;
   *)
-    echo "workspace-trigger-build: WORKSPACE_JOB must be checks or deploy (got $JOB)" >&2
+    echo "workspace-trigger-build: WORKSPACE_JOB must be checks, deploy or make (got $JOB)" >&2
     exit 2
     ;;
 esac
