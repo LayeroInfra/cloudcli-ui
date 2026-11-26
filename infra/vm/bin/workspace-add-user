@@ -1,0 +1,48 @@
+#!/bin/bash
+# Create a CloudUI login. Username must already be a valid Woodpecker owner label.
+set -euo pipefail
+# shellcheck source=/dev/null
+source "$HOME/.local/bin/workspace-owner-lib.sh"
+
+USER_NAME="${1:-}"
+PASS="${2:-}"
+if [ -z "$USER_NAME" ] || [ -z "$PASS" ]; then
+  echo "usage: workspace-add-user <username> <password>" >&2
+  echo "username: 3+ chars, a-z 0-9 _ -, no leading/trailing dashes (also the build owner)" >&2
+  exit 1
+fi
+if ! is_valid_workspace_username "$USER_NAME"; then
+  echo "invalid username: use a-z 0-9 _ - only, length >= 3, no leading/trailing dashes" >&2
+  exit 1
+fi
+if [ "${#PASS}" -lt 10 ]; then
+  echo "password >= 10 chars" >&2
+  exit 1
+fi
+
+OWNER="$(normalize_workspace_owner "$USER_NAME")"
+cd "$HOME/.local/share/cloudcli-releases/workspace-ui/dist-server"
+node --input-type=module - "$USER_NAME" "$PASS" "$OWNER" <<'NODE'
+import bcrypt from "bcryptjs";
+import Database from "better-sqlite3";
+import { homedir } from "node:os";
+
+const [user, pass, owner] = process.argv.slice(2);
+const db = new Database(`${homedir()}/.cloudcli/auth.db`);
+const existing = db.prepare("SELECT username FROM users WHERE is_active = 1").all();
+const normalize = (name) => String(name).toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+for (const row of existing) {
+  if (normalize(row.username) === owner) {
+    console.error(`owner collision with existing user ${row.username}`);
+    process.exit(1);
+  }
+}
+const hash = await bcrypt.hash(pass, 12);
+try {
+  db.prepare("INSERT INTO users (username, password_hash) VALUES (?, ?)").run(user, hash);
+  console.log(`created user ${user} (owner=${owner})`);
+} catch (e) {
+  console.error(String(e.message || e));
+  process.exit(1);
+}
+NODE

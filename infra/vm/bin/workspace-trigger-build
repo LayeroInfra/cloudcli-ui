@@ -1,0 +1,71 @@
+#!/bin/bash
+# Create a Woodpecker pipeline for WORKSPACE_OWNER from the environment only.
+# Owner is never taken from argv — use the CloudUI API (session user) instead.
+# WORKSPACE_JOB=checks|deploy selects the Mac runner (default checks).
+set -euo pipefail
+# shellcheck source=/dev/null
+source "$HOME/.local/bin/workspace-owner-lib.sh"
+
+export WOODPECKER_SERVER="${WOODPECKER_SERVER:-http://127.0.0.1:8000}"
+export WOODPECKER_DISABLE_UPDATE_CHECK=true
+TOKEN_FILE="${HOME}/.local/state/woodpecker/user.token"
+if [ -z "${WOODPECKER_TOKEN:-}" ] && [ -f "$TOKEN_FILE" ]; then
+  WOODPECKER_TOKEN=$(tr -d "\n" < "$TOKEN_FILE")
+  export WOODPECKER_TOKEN
+fi
+if [ -z "${WOODPECKER_TOKEN:-}" ]; then
+  echo "Нет WOODPECKER_TOKEN ($TOKEN_FILE)" >&2
+  exit 1
+fi
+
+OWNER="$(normalize_workspace_owner "${WORKSPACE_OWNER:-}")"
+TITLE="${WORKSPACE_BUILD_TITLE:-}"
+JOB="$(printf '%s' "${WORKSPACE_JOB:-checks}" | tr '[:upper:]' '[:lower:]')"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --title)
+      TITLE="${2:-}"
+      shift 2
+      ;;
+    --job)
+      JOB="$(printf '%s' "${2:-}" | tr '[:upper:]' '[:lower:]')"
+      shift 2
+      ;;
+    --owner)
+      echo "workspace-trigger-build: --owner убран; owner только из WORKSPACE_OWNER (сессия CloudUI)" >&2
+      exit 2
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+if [ -z "$OWNER" ]; then
+  echo "Нет WORKSPACE_OWNER — не могу создать пайплайн с label owner=…" >&2
+  exit 1
+fi
+
+case "$JOB" in
+  checks|deploy) ;;
+  *)
+    echo "workspace-trigger-build: WORKSPACE_JOB must be checks or deploy (got $JOB)" >&2
+    exit 2
+    ;;
+esac
+
+if [ -z "$TITLE" ]; then
+  if [ "$JOB" = "deploy" ]; then
+    TITLE="Deploy workspace-ui"
+  else
+    TITLE="Manual checks"
+  fi
+fi
+
+TITLE="$(printf "%s" "$TITLE" | tr "\n\r\t" "   " | sed -E "s/  +/ /g; s/^ +//; s/ +$//" | cut -c1-80)"
+BRANCH="${WOODPECKER_BRANCH:-main}"
+ARGS=(pipeline create buildadmin/cloudcli-checks --branch "$BRANCH" \
+  --var "WORKSPACE_OWNER=${OWNER}" \
+  --var "WORKSPACE_JOB=${JOB}" \
+  --var "WORKSPACE_BUILD_TITLE=${TITLE}")
+exec "$HOME/.local/bin/woodpecker-cli" "${ARGS[@]}" "$@"

@@ -22,10 +22,10 @@ Layero Workspace — **общий рабочий стол** с разными л
 ## Оператор / разработка на Mac
 
 ```bash
-WORKSPACE_RUNTIME_DIR=/path/to/private-runtime ./companion/bin/install.sh
+./companion/bin/install.sh --runtime layero-mac-runtime.tar.gz   # runtime: workspace-mac-runtime на VM
 open ~/Applications/Layero\ Workspace.app
 # zip для команды:
-WORKSPACE_RUNTIME_DIR=/path/to/private-runtime ./companion/bin/package.sh
+./companion/bin/package.sh layero-mac-runtime.tar.gz
 ```
 
 ## Сборки
@@ -38,11 +38,11 @@ WORKSPACE_RUNTIME_DIR=/path/to/private-runtime ./companion/bin/package.sh
 
 | Где | Что |
 |-----|-----|
-| [`ci/cloudcli-checks.woodpecker.yml`](../../ci/cloudcli-checks.woodpecker.yml) | Исходник `.woodpecker.yml` в Forgejo `buildadmin/cloudcli-checks`; оператор копирует его туда после правки |
+| [`ci/cloudcli-checks.woodpecker.yml`](../../ci/cloudcli-checks.woodpecker.yml) | Исходник `.woodpecker.yml` в Forgejo `buildadmin/cloudcli-checks`; `infra/vm/install.sh` синхронизирует его туда |
 | `companion/bin/workspace-run-job` | Единственная команда шага; по `WORKSPACE_JOB` вызывает checks или deploy |
 | `companion/bin/workspace-run-checks` | Тесты в checkout из `identity.json` — как он лежит на диске, с незакоммиченными правками |
 | `companion/bin/workspace-run-deploy` | Сборка `origin/main` в отдельном worktree `~/.cache/layero-workspace/ship`, rsync на VM, вызов promote |
-| `companion/vm/workspace-promote-release` | На VM (`~/.local/bin`): flock, запрет более старого коммита, сверка `package-lock.json` с установленными `node_modules`, smoke и откат |
+| `infra/vm/bin/workspace-promote-release` | На VM (ставит `infra/vm/install.sh`): flock, запрет более старого коммита, сверка `package-lock.json` с установленными `node_modules`, smoke и откат |
 
 Коды `workspace-promote-release`: `0` выкачено, `3` отказ (старый коммит / зависимости / битый stage), `4` smoke не прошёл — вернули прошлый релиз, `5` идёт другой деплой.
 Обойти: `WORKSPACE_DEPLOY_ALLOW_OLDER=1` (откат на старый коммит), `WORKSPACE_DEPLOY_DEPS_OK=1` (оператор уже обновил `node_modules`).

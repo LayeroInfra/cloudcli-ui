@@ -1,0 +1,15 @@
+[Unit]
+Description=Local Forgejo for Woodpecker
+After=network.target
+
+[Service]
+WorkingDirectory=%h/.local/state/forgejo
+Environment=FORGEJO_WORK_DIR=%h/.local/state/forgejo
+Environment=GITEA_WORK_DIR=%h/.local/state/forgejo
+ExecStart=%h/.local/bin/forgejo web --config %h/.config/forgejo/app.ini
+Restart=on-failure
+RestartSec=3
+MemoryMax=400M
+
+[Install]
+WantedBy=default.target

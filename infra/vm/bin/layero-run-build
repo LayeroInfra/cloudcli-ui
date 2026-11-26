@@ -1,0 +1,42 @@
+#!/bin/bash
+# Runs one heavy npm task (build/typecheck/test/lint) for /srv/Layero in layerobuild.slice.
+# Called by ~/.local/bin/npm under a flock, so tasks from all parallel sessions queue up
+# one at a time. Instead of failing when RAM is short, waits until enough is free.
+set -eu
+
+task=${3:-}                      # "$real" run <task> ...
+case "$task" in
+  build|build:client) need=1800 ;;   # vite build: ~1.65 GB anon peak (measured 2026-11-25)
+  typecheck)          need=1100 ;;   # two tsc passes: ~0.95 GB
+  build:*)            need=900  ;;   # build:server (tsc + tsc-alias): ~0.75 GB
+  test|test:*)        need=800  ;;   # vitest jsdom, 1 worker: ~0.5 GB
+  *)                  need=800  ;;
+esac
+reserve=300                      # left for the system and the chat while the task runs
+wait_max=${LAYERO_BUILD_WAIT:-900}
+
+avail() { awk '/^MemAvailable:/ {print int($2/1024)}' /proc/meminfo; }
+
+waited=0
+while (( $(avail) - reserve < need )); do
+  if (( waited == 0 )); then
+    echo "layero-build: ждём память для '$task': нужно ${need} МиБ, свободно $(( $(avail) - reserve )) МиБ (до ${wait_max} с)…" >&2
+  fi
+  if (( waited >= wait_max )); then
+    echo "layero-build: память так и не освободилась за ${wait_max} с. Закройте лишние сессии или стенд и повторите." >&2
+    exit 75
+  fi
+  sleep 5; waited=$((waited + 5))
+done
+(( waited == 0 )) || echo "layero-build: память освободилась через ${waited} с, запускаем '$task'." >&2
+
+budget=$(( $(avail) - reserve ))
+(( budget <= 2400 )) || budget=2400
+if [[ " ${NODE_OPTIONS:-} " != *--max-old-space-size* ]]; then
+  export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--max-old-space-size=$((budget - 300))"
+fi
+
+# oom_score_adj 900: under global pressure the kernel kills the build first,
+# then a single Claude session (400), never the chat server (200).
+exec systemd-run --user --scope --quiet --slice=layerobuild.slice -p "MemoryMax=${budget}M" \
+  choom -n 900 -- "$@"

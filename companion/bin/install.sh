@@ -1,12 +1,44 @@
 #!/bin/bash
 # Install Layero Workspace into ~/Applications — a real .app that stays in the Dock.
+#
+#   companion/bin/install.sh --runtime layero-mac-runtime.tar.gz
+#
+# The runtime archive comes from the VM (`workspace-mac-runtime`). Without
+# --runtime the files already in the package or WORKSPACE_RUNTIME_DIR are used.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+RUNTIME_SOURCE="${WORKSPACE_RUNTIME_DIR:-$ROOT}"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --runtime) RUNTIME_SOURCE="${2:?--runtime needs a path}"; shift 2 ;;
+    -h|--help) sed -n '2,8p' "$0"; exit 0 ;;
+    *) echo "unknown option $1" >&2; exit 2 ;;
+  esac
+done
+[ "$(uname -s)-$(uname -m)" = Darwin-arm64 ] || { echo "Layero Workspace needs an Apple Silicon Mac" >&2; exit 1; }
+for tool in python3 rsync curl git; do
+  command -v "$tool" >/dev/null || { echo "missing $tool: xcode-select --install" >&2; exit 1; }
+done
+
 SHARE="$HOME/.local/share/cloudcli-companion"
 source "$ROOT/bin/lib/runtime-files.sh"
-RUNTIME="$(cd "${WORKSPACE_RUNTIME_DIR:-$ROOT}" && pwd)"
+RUNTIME="$(unpack_runtime "$RUNTIME_SOURCE")"
+# An unpacked archive holds the SSH key and agent secret: never leave it behind.
+[ -d "$RUNTIME_SOURCE" ] || trap 'rm -rf "$RUNTIME"' EXIT
 require_runtime_files "$RUNTIME"
+
+# The pinned Node the checks and deploys run with (infra/versions.env; packages carry a copy).
+VERSIONS="$ROOT/../infra/versions.env"
+[ -f "$VERSIONS" ] || VERSIONS="$ROOT/versions.env"
+FETCH_LIB="$ROOT/../infra/lib/fetch.sh"
+[ -f "$FETCH_LIB" ] || FETCH_LIB="$ROOT/bin/lib/fetch.sh"
+# shellcheck source=../../infra/versions.env
+source "$VERSIONS"
+# shellcheck source=../../infra/lib/fetch.sh
+source "$FETCH_LIB"
+install_node darwin-arm64 "$NODE_DARWIN_ARM64_SHA256"
+ln -sfn "$HOME/.local/lib/node-v${NODE_VERSION}-darwin-arm64" "$HOME/.local/lib/layero-node"
 mkdir -p "$SHARE" "$HOME/.local/bin" "$HOME/Applications" "$HOME/.config/layero-workspace" \
   "$HOME/.local/state/cloudcli-companion" "$HOME/Library/LaunchAgents"
 
@@ -38,6 +70,15 @@ if [ "$ROOT" != "$SHARE" ]; then
     "$ROOT/" "$SHARE/"
 fi
 copy_runtime_files "$RUNTIME" "$SHARE"
+# Older runtimes shipped one agent.conf to every Mac, so all agents shared an id.
+# Drop it once; the agent writes its own on the next start.
+if [ -f "$SHARE/agent/agent.conf" ] && [ ! -f "$SHARE/agent/.own-agent-conf" ]; then
+  rm -f "$SHARE/agent/agent.conf"
+fi
+touch "$SHARE/agent/.own-agent-conf"
+# Packages built from this install carry the pins and the download helper too.
+install -m 644 "$VERSIONS" "$SHARE/versions.env"
+install -m 644 "$FETCH_LIB" "$SHARE/bin/lib/fetch.sh"
 
 chmod 755 "$SHARE/bin/"*.sh "$SHARE/bin/workspace-run-"* "$SHARE/bin/lib/"*.sh "$SHARE/bin/lib/"*.py 2>/dev/null || true
 chmod 755 "$SHARE/app/Companion.app/Contents/MacOS/companion"

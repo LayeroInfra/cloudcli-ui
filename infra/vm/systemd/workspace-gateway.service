@@ -1,0 +1,13 @@
+[Unit]
+Description=Workspace HTTPS gateway (CloudUI)
+After=network.target frontend-cloudcli.service
+Wants=frontend-cloudcli.service
+
+[Service]
+ExecStart=%h/.local/bin/caddy run --config %h/.config/workspace-gateway/Caddyfile --adapter caddyfile
+Restart=on-failure
+RestartSec=2
+MemoryMax=128M
+
+[Install]
+WantedBy=default.target

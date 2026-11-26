@@ -1,0 +1,5 @@
+#!/bin/bash
+set -euo pipefail
+export WORKSPACE_JOB=deploy
+export WORKSPACE_BUILD_TITLE="${WORKSPACE_BUILD_TITLE:-Deploy workspace-ui}"
+exec "$HOME/.local/bin/workspace-trigger-build" "$@"

@@ -1,0 +1,14 @@
+[Unit]
+Description=Private frontend CloudCLI
+
+[Service]
+WorkingDirectory=@WORKSPACES_ROOT@/frontend
+UMask=0077
+Environment=HOST=127.0.0.1 PORT=3002 SERVER_PORT=3002 NODE_ENV=production WORKSPACES_ROOT=@WORKSPACES_ROOT@
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+# The release workspace-promote-release puts in place.
+ExecStart=%h/.local/bin/node %h/.local/share/cloudcli-releases/workspace-ui/dist-server/server/index.js
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

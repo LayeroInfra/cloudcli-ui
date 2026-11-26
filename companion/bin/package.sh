@@ -7,7 +7,9 @@ DIST="$ROOT/dist"
 STAGE="$DIST/Layero Workspace"
 
 source "$ROOT/bin/lib/runtime-files.sh"
-RUNTIME="$(cd "${WORKSPACE_RUNTIME_DIR:-$ROOT}" && pwd)"
+RUNTIME_SOURCE="${1:-${WORKSPACE_RUNTIME_DIR:-$ROOT}}"
+RUNTIME="$(unpack_runtime "$RUNTIME_SOURCE")"
+[ -d "$RUNTIME_SOURCE" ] || trap 'rm -rf "$RUNTIME"' EXIT
 require_runtime_files "$RUNTIME"
 
 # Build before copying so both bundled executables come from this build.
@@ -27,6 +29,11 @@ rsync -a --delete \
   --exclude '*.zip' \
   "$ROOT/" "$STAGE/cloudcli-companion/"
 copy_runtime_files "$RUNTIME" "$STAGE/cloudcli-companion"
+# The zip has no infra/: carry the pins and the download helper install.sh reads.
+for pair in "infra/versions.env:versions.env" "infra/lib/fetch.sh:bin/lib/fetch.sh"; do
+  from="$ROOT/../${pair%%:*}"; [ -f "$from" ] || from="$ROOT/${pair#*:}"
+  install -m 644 "$from" "$STAGE/cloudcli-companion/${pair#*:}"
+done
 
 # Real Cocoa .app (Dock while running; Quit → stop-workspace)
 mkdir -p "$STAGE/Layero Workspace.app/Contents/MacOS" "$STAGE/Layero Workspace.app/Contents/Resources"

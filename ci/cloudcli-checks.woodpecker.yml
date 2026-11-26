@@ -1,6 +1,6 @@
 # Source of truth for `.woodpecker.yml` in Forgejo `buildadmin/cloudcli-checks`
-# on the workspace VM. That repo only carries this file; the operator copies
-# it there after a change here. The steps run on the owner's Mac
+# on the workspace VM. That repo only carries this file; infra/vm/install.sh
+# pushes it there (and --check reports when Forgejo's copy differs). The steps run on the owner's Mac
 # (backend=local), so the commands live in companion/bin/workspace-run-*.
 #
 # Variables, set by the CloudUI builds API or ~/.local/bin/workspace-trigger-build:

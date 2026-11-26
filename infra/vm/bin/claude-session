@@ -1,0 +1,4 @@
+#!/bin/bash
+# Claude session launched by CloudUI. Raised oom_score_adj: under global memory
+# pressure the kernel kills one session (or a build, 900) before the chat server (200).
+exec choom -n 400 -- "$HOME/.local/bin/claude" "$@"

@@ -1,0 +1,45 @@
+#!/bin/bash
+# Builds the private runtime a Mac needs to join this workspace:
+#   secrets/ssh/id_ed25519   companion SSH key (tunnel + deploy); its public half
+#                            is added to ~/.ssh/authorized_keys here
+#   agent/agent.secret       Woodpecker agent secret of this server
+#   bin/woodpecker-agent     the pinned darwin/arm64 agent, checksum-verified
+#
+#   workspace-mac-runtime [out.tar.gz]      default ~/layero-mac-runtime.tar.gz
+#
+# Hand the archive over privately; on the Mac:
+#   companion/bin/install.sh --runtime layero-mac-runtime.tar.gz
+# Installed by infra/vm/install.sh.
+set -euo pipefail
+OUT="${1:-$HOME/layero-mac-runtime.tar.gz}"
+SHARE="$HOME/.local/share/layero-infra"
+# shellcheck source=/dev/null
+source "$SHARE/versions.env"
+# shellcheck source=/dev/null
+source "$SHARE/fetch.sh"
+
+KEY="${WORKSPACE_COMPANION_KEY:-$HOME/.local/state/layero-infra/companion_ed25519}"
+SECRET="$HOME/.local/state/woodpecker/agent.secret"
+[ -s "$SECRET" ] || { echo "no $SECRET: run infra/vm/install.sh first" >&2; exit 1; }
+
+if [ ! -s "$KEY" ]; then
+  mkdir -p "$(dirname "$KEY")"
+  ssh-keygen -q -t ed25519 -N '' -C layero-companion -f "$KEY"
+fi
+PUB="$(cut -d' ' -f1,2 "$KEY.pub")"
+mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+touch "$HOME/.ssh/authorized_keys" && chmod 600 "$HOME/.ssh/authorized_keys"
+if ! grep -qF "$PUB" "$HOME/.ssh/authorized_keys"; then
+  echo "no-agent-forwarding,no-X11-forwarding $PUB layero-companion" >> "$HOME/.ssh/authorized_keys"
+  echo "added the companion key to ~/.ssh/authorized_keys"
+fi
+
+STAGE="$(mktemp -d)"
+trap 'rm -rf "$STAGE"' EXIT
+install -d -m 700 "$STAGE/secrets/ssh" "$STAGE/agent" "$STAGE/bin"
+install -m 600 "$KEY" "$STAGE/secrets/ssh/id_ed25519"
+install -m 600 "$SECRET" "$STAGE/agent/agent.secret"
+fetch_woodpecker_binary agent darwin_arm64 "$WOODPECKER_AGENT_DARWIN_ARM64_SHA256" "$STAGE/bin/woodpecker-agent"
+printf 'woodpecker %s\nbuilt %s on %s\n' "$WOODPECKER_VERSION" "$(date -Iseconds)" "$(hostname)" > "$STAGE/RUNTIME"
+( umask 077; tar -czf "$OUT" -C "$STAGE" . )
+echo "wrote $OUT (private: SSH key and agent secret inside)"
