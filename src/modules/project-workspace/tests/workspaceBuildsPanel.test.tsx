@@ -3,15 +3,10 @@ import assert from 'node:assert/strict';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { test, vi } from 'vitest';
 
+// Init i18next so defaultValue templates like 'exit {{code}}' interpolate; a
+// react-i18next mock alone hangs vitest collect on the Mac agent (#29).
+import '@/modules/i18n';
 import type { WorkspaceBuild, WorkspaceBuildDetail } from '@/shared/types';
-
-// No i18next instance in tests: render each string's default, with its {{values}} filled in.
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, options: Record<string, unknown> & { defaultValue?: string } = {}) => (options.defaultValue ?? key)
-      .replace(/\{\{(\w+)\}\}/g, (_match, name: string) => String(options[name] ?? '')),
-  }),
-}));
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), cancel: vi.fn() }));
 vi.mock('@/shared/api', () => ({ api: { workspaceBuilds: { get: mocks.get, cancel: mocks.cancel, list: vi.fn(), trigger: vi.fn() } } }));
