@@ -26,6 +26,8 @@ final class WorkspacePage: NSObject, WKNavigationDelegate {
     webView = WKWebView(frame: .zero, configuration: config)
     super.init()
     webView.navigationDelegate = self
+    webView.uiDelegate = WebPageHost.shared
+    dragRegions.webView = webView
   }
 
   func load() {
@@ -37,17 +39,27 @@ final class WorkspacePage: NSObject, WKNavigationDelegate {
     decidePolicyFor navigationAction: WKNavigationAction,
     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
   ) {
+    if navigationAction.shouldPerformDownload {
+      decisionHandler(.download)
+      return
+    }
     let destination = navigationAction.request.url
     if destination?.scheme == url.scheme, destination?.host == url.host, destination?.port == url.port {
+      decisionHandler(.allow)
+      return
+    }
+    // Frames inside the workspace (the Browser panel's localhost preview,
+    // srcdoc/blob previews) may load anything; only the top-level page is
+    // pinned to the workspace UI.
+    if let frame = navigationAction.targetFrame, !frame.isMainFrame {
       decisionHandler(.allow)
       return
     }
     decisionHandler(.cancel)
     if completion != nil {
       finish(false)
-    } else if navigationAction.navigationType == .linkActivated,
-              let destination, ["https", "http"].contains(destination.scheme) {
-      NSWorkspace.shared.open(destination)
+    } else if let destination, ["https", "http"].contains(destination.scheme?.lowercased()) {
+      BrowserWindow.open(destination)
     }
   }
 
@@ -61,9 +73,19 @@ final class WorkspacePage: NSObject, WKNavigationDelegate {
        !(200..<300).contains(response.statusCode) {
       decisionHandler(.cancel)
       finish(false)
+    } else if completion == nil, WebPageHost.shouldDownload(navigationResponse) {
+      decisionHandler(.download)
     } else {
       decisionHandler(.allow)
     }
+  }
+
+  func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
+    download.delegate = Downloads.shared
+  }
+
+  func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
+    download.delegate = Downloads.shared
   }
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -83,6 +105,8 @@ final class WorkspacePage: NSObject, WKNavigationDelegate {
 
   private static let windowIntegration = WKUserScript(
     source: """
+      // Popups the workspace opens share this configuration; leave them alone.
+      if (location.origin === 'https://127.0.0.1:19443' && !window.opener) {
       const style = document.createElement('style');
       style.textContent = `
         .fixed.inset-0.flex.bg-background:has(> .flex.min-w-0.flex-1.flex-col) {
@@ -92,6 +116,7 @@ final class WorkspacePage: NSObject, WKNavigationDelegate {
       document.head.append(style);
       \(WorkspaceDragRegions.script)
       \(WorkspacePage.profileAndStartupScript)
+      }
       """,
     injectionTime: .atDocumentEnd,
     forMainFrameOnly: true,

@@ -3,9 +3,12 @@ import WebKit
 final class WorkspaceDragRegions: NSObject, WKScriptMessageHandler {
   private(set) var rectangles: [CGRect] = []
   var onSwitchWorkspace: (() -> Void)?
+  /// Popups opened from the workspace share its content controller; only the
+  /// workspace page itself may move the title bar or switch workspaces.
+  weak var webView: WKWebView?
 
   func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-    guard message.frameInfo.isMainFrame else { return }
+    guard message.frameInfo.isMainFrame, message.webView === webView else { return }
     if (message.body as? String) == "switch" {
       onSwitchWorkspace?()
       return

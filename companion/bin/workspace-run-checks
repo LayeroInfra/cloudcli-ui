@@ -11,6 +11,8 @@ source "$JOB_LIB"
 cd "$JOB_CHECKOUT"
 export PATH="${JOB_CHECKOUT}/node_modules/.bin:$PATH"
 echo "workspace-run-checks owner=$JOB_OWNER checkout=$JOB_CHECKOUT commit=$(git rev-parse --short HEAD 2>/dev/null || echo '?')$(git diff --quiet 2>/dev/null || echo '+dirty')"
+# The Companion app is Swift and only compiles on a Mac; this is its one check.
+swiftc -typecheck companion/app/CompanionApp/*.swift
 tsx --tsconfig server/tsconfig.json --test \
   server/modules/providers/tests/claude-sessions.test.ts \
   server/modules/providers/tests/claude-rate-limits.test.ts \

@@ -141,6 +141,8 @@ if ! IFS= read -r -t 45 browser_status || [ "$browser_status" != ready ]; then
 fi
 
 "$ROOT/bin/status-server.sh" || true
+# Dev-server ports for the Browser panel; a failure only loses the preview.
+"$ROOT/bin/start-preview-tunnel.sh" || true
 agent_service="gui/$(id -u)/ai.layero.cloudcli-build-agent"
 launchctl bootout "$agent_service" 2>/dev/null || true
 launchctl bootstrap "${agent_service%/*}" "$PLIST_DST" 2>/dev/null || launchctl load "$PLIST_DST" 2>/dev/null || true

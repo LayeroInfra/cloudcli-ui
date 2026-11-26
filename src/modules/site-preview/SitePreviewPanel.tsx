@@ -19,9 +19,11 @@ type PreviewTab = {
 };
 
 const HOME_URL = 'http://localhost:5174/';
-// The dev-server ports the SSH tunnel forwards, mapped to the local port that
-// reaches them. 5173 inside the workspace is served on 15173 locally.
-const TUNNELED_PORTS: Record<string, string> = { 5174: '5174', 8080: '8080', 15173: '15173', 5173: '15173' };
+// The dev-server ports the Companion preview tunnel forwards
+// (companion/bin/start-preview-tunnel.sh), mapped to the local port that
+// reaches them. 5173 inside the workspace is served on 15173 locally; 8000 is
+// the API the Layero control plane on 5174 calls.
+const TUNNELED_PORTS: Record<string, string> = { 5174: '5174', 8080: '8080', 15173: '15173', 5173: '15173', 8000: '8000' };
 const TABS_KEY = 'site-preview-tabs';
 const WIDTH_KEY = 'site-preview-width';
 const DEFAULT_WIDTH_PERCENT = 46;
@@ -191,7 +193,7 @@ export default function SitePreviewPanel({ open, onOpenChange }: SitePreviewPane
       setAddressError(null);
       addressRef.current?.blur();
     } catch {
-      setAddressError(t('workspace.browser.invalidAddress', { defaultValue: 'Only localhost on ports 5174, 8080, 5173 and 15173 can be opened.' }));
+      setAddressError(t('workspace.browser.invalidAddress', { defaultValue: 'Only localhost on ports 5174, 8080, 8000, 5173 and 15173 can be opened.' }));
     }
   };
 
