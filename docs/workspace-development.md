@@ -102,7 +102,7 @@ WORKSPACE_OWNER=<owner> workspace-trigger-make core ship DRY=1
 WORKSPACE_OWNER=<owner> workspace-trigger-make core image C=builder TAG=v123
 ```
 
-- Запуск берёт текущий коммит и ветку `/srv/Layero/<repo>` на VM;
+- Запуск берёт текущий коммит и ветку `/srv/Layero/<repo>` на VM (`--ref <ветка>` — другую ветку, например worktree);
   незакоммиченное не уезжает (скрипт предупредит). Пушить заранее не нужно:
   Mac забирает коммит с VM по ключу companion.
 - На Mac (`companion/bin/workspace-run-make`) — свои клоны в
