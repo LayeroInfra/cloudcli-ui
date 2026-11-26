@@ -231,6 +231,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       return
     }
 
+    // Resolve the optional cache before the child starts waiting on stdin.
+    let token = switching ? "" : sessionCache.token(for: currentIdentity()) ?? ""
+
     let proc = Process()
     proc.executableURL = URL(fileURLWithPath: "/bin/bash")
     proc.arguments = [startScript.path]
@@ -270,7 +273,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       companion = proc
       try? output.fileHandleForWriting.close()
       try? input.fileHandleForReading.close()
-      let token = switching ? "" : sessionCache.token(for: currentIdentity()) ?? ""
       do {
         try input.fileHandleForWriting.write(contentsOf: Data((token + "\n").utf8))
       } catch {
