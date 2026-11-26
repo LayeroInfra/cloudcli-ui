@@ -36,12 +36,18 @@ test('nothing is set on Windows or when the shim cannot be written', () => {
 test('without a terminal the shim prints the URL and succeeds, so the caller does not fail', { skip: process.platform === 'win32' }, () => {
   const directory = tempDirectory();
   ensureWorkspaceBrowserShim({ directory });
-  // detached: a new session with no controlling terminal, like a Bash tool.
-  const run = spawnSync(path.join(directory, 'cloudui-open'), ['http://localhost:5174/x'], { encoding: 'utf8', detached: true });
+  // No stdin (like a Bash tool with no TTY): the shim must print the URL, not hang.
+  const run = spawnSync(path.join(directory, 'cloudui-open'), ['http://localhost:5174/x'], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
   assert.equal(run.status, 0);
   assert.match(run.stderr, /Open in the browser: http:\/\/localhost:5174\/x/);
 
-  const fileRun = spawnSync(path.join(directory, 'xdg-open'), ['/srv/project/README.md'], { encoding: 'utf8', detached: true });
+  const fileRun = spawnSync(path.join(directory, 'xdg-open'), ['/srv/project/README.md'], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
   assert.equal(fileRun.status, 0);
   assert.doesNotMatch(fileRun.stderr, /OPEN_URL/);
 });
