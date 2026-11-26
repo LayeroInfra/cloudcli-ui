@@ -58,7 +58,7 @@ type LayeroWorkspaceLockupProps = {
 };
 
 /**
- * "layero Workspace" lockup: the wordmark followed by the product suffix.
+ * "layero | Workspace" lockup: the wordmark, a vertical rule, then the product suffix.
  * Used by the auth module (login, setup and loading screens), the sidebar
  * module (header) and the settings module (about tab) wherever the product
  * is named as a brand rather than in running text.
@@ -69,10 +69,12 @@ export function LayeroWorkspaceLockup({ size = 'sm', className }: LayeroWorkspac
     <span
       role="img"
       aria-label={PRODUCT_NAME}
-      className={cn('inline-flex items-center text-foreground', isLarge ? 'gap-2' : 'gap-1.5', className)}
+      className={cn('inline-flex items-center text-foreground', isLarge ? 'gap-3' : 'gap-2', className)}
     >
       {/* translate nudges the wordmark onto the suffix's text baseline. */}
       <LayeroWordmark className={cn('w-auto shrink-0', isLarge ? 'h-[22px] translate-y-[2px]' : 'h-[15px] translate-y-px')} />
+      {/* Vertical rule separating the Layero wordmark from the product name. */}
+      <span aria-hidden className={cn('w-px shrink-0 bg-border-strong', isLarge ? 'h-6' : 'h-4')} />
       <span
         aria-hidden
         className={cn(

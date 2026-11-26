@@ -27,7 +27,8 @@ function LogoBlock() {
     // The wordmark already carries the Layero "o", so the header shows the
     // lockup alone, as the Layero panel's sidebar does.
     <div className="flex h-7 min-w-0 items-center pl-1">
-      <LayeroWorkspaceLockup />
+      {/* Lifted a few pixels so the lockup lines up with the workspace header's title row. */}
+      <LayeroWorkspaceLockup className="-translate-y-[3px]" />
     </div>
   );
 }
