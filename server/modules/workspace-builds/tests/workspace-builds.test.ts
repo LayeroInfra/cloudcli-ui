@@ -5,13 +5,13 @@ import test from 'node:test';
 
 import express from 'express';
 
-import { normalizeWorkspaceOwner, workspaceBuildsService } from '@/modules/workspace-builds/services/workspace-builds.service.js';
+import { normalizeBuildTitle, normalizeWorkspaceOwner, workspaceBuildsService } from '@/modules/workspace-builds/services/workspace-builds.service.js';
 import { createWorkspaceBuildsRouter } from '@/modules/workspace-builds/workspace-builds.routes.js';
 
 const b64 = (text: string) => Buffer.from(`${text}\n`).toString('base64');
 
 const PIPELINES = [
-  { number: 13, status: 'running', branch: 'main', event: 'manual', created: 1795630072, started: 1795630072, finished: 0, variables: { WORKSPACE_OWNER: 'alice' } },
+  { number: 13, status: 'running', branch: 'main', event: 'manual', created: 1795630072, started: 1795630072, finished: 0, variables: { WORKSPACE_OWNER: 'alice', WORKSPACE_JOB: 'deploy', WORKSPACE_BUILD_TITLE: 'ship builds panel' } },
   { number: 12, status: 'failure', branch: 'main', event: 'manual', created: 1795629805, started: 1795629805, finished: 1795629809, variables: { WORKSPACE_OWNER: 'bob' } },
   { number: 11, status: 'pending', branch: 'main', event: 'manual', created: 1795629750, started: 0, finished: 0, variables: { WORKSPACE_OWNER: 'alice' } },
   // Before owner routing: nobody's.
@@ -23,28 +23,32 @@ const DETAIL_12 = {
   workflows: [{ name: 'woodpecker', children: [{ id: 41, name: 'session-tests', state: 'failure', exit_code: 1, started: 1795629805, finished: 1795629809 }] }],
 };
 
-function fakeWoodpecker() {
+type Created = { branch: string; variables: Record<string, string> };
+
+function fakeWoodpecker(pipelines: unknown[] = PIPELINES) {
   const calls: string[] = [];
-  const triggered: string[] = [];
+  const triggered: Created[] = [];
   workspaceBuildsService.setSource({
     serverUrl: 'http://woodpecker.test',
     repo: 'buildadmin/cloudcli-checks',
+    branch: 'main',
     readToken: async () => 'token',
     fetch: async (url, init) => {
       calls.push(url);
       assert.equal(init?.headers?.Authorization, 'Bearer token');
       const path = url.replace('http://woodpecker.test', '');
+      if (init?.method === 'POST' && path === '/api/repos/1/pipelines') {
+        triggered.push(JSON.parse(init.body ?? '{}') as Created);
+        return { ok: true, status: 200, json: async () => ({ number: 14, status: 'pending' }) };
+      }
+      const page = /^\/api\/repos\/1\/pipelines\?page=(\d+)&perPage=(\d+)$/.exec(path);
       const body = path === '/api/repos/lookup/buildadmin/cloudcli-checks' ? { id: 1 }
-        : path.startsWith('/api/repos/1/pipelines?') ? PIPELINES
+        : page ? pipelines.slice((Number(page[1]) - 1) * Number(page[2]), Number(page[1]) * Number(page[2]))
           : path === '/api/repos/1/pipelines/12' ? DETAIL_12
             : path === '/api/repos/1/pipelines/13' ? { ...PIPELINES[0], workflows: [] }
               : path === '/api/repos/1/logs/12/41' ? [{ line: 0, data: b64('+ workspace-run-checks') }, { line: 1, data: b64('\u001b[1m\u001b[31mFAIL\u001b[39m\u001b[22m session tests') }]
                 : null;
       return { ok: body !== null, status: body === null ? 404 : 200, json: async () => body };
-    },
-    trigger: async (owner) => {
-      triggered.push(owner);
-      return 'NUMBER  STATUS   EVENT   BRANCH\n14      pending  manual  main\n';
     },
   });
   return { calls, triggered };
@@ -65,6 +69,12 @@ test('a user lists only their own builds, never another owner\'s or unowned ones
     const [running] = await workspaceBuildsService.listBuilds('alice');
     assert.equal(running.startedAt, new Date(1795630072 * 1000).toISOString());
     assert.equal(running.finishedAt, null);
+    assert.equal(running.job, 'deploy');
+    assert.equal(running.title, 'ship builds panel');
+    // Runs from before WORKSPACE_JOB and titles read as untitled checks.
+    const [old] = await workspaceBuildsService.listBuilds('bob');
+    assert.equal(old.job, 'checks');
+    assert.equal(old.title, '');
   } finally {
     workspaceBuildsService.setSource();
   }
@@ -93,11 +103,48 @@ test('another owner\'s build, or one that does not exist, reads as not found', a
   }
 });
 
-test('a build is started for the session owner only and reports its number', async () => {
+test('a user\'s builds behind other users\' runs are still found, a few pages deep', async () => {
+  const others = Array.from({ length: 60 }, (_, index) => ({ number: 200 - index, status: 'success', variables: { WORKSPACE_OWNER: 'bob' } }));
+  const { calls } = fakeWoodpecker([...others, { number: 100, status: 'success', variables: { WORKSPACE_OWNER: 'alice' } }]);
+  try {
+    assert.deepEqual((await workspaceBuildsService.listBuilds('alice')).map((build) => build.number), [100]);
+    assert.equal(calls.filter((url) => url.includes('/pipelines?page=')).length, 2);
+  } finally {
+    workspaceBuildsService.setSource();
+  }
+});
+
+test('a build is started for the session owner only, as a titled checks run, and reports its number', async () => {
   const { triggered } = fakeWoodpecker();
   try {
     assert.deepEqual(await workspaceBuildsService.triggerBuild('Alice'), { number: 14 });
-    assert.deepEqual(triggered, ['alice']);
+    assert.deepEqual(await workspaceBuildsService.triggerBuild('alice', { title: '  session\n rename ' }), { number: 14 });
+    assert.deepEqual(triggered, [
+      { branch: 'main', variables: { WORKSPACE_OWNER: 'alice', WORKSPACE_JOB: 'checks', WORKSPACE_BUILD_TITLE: 'Manual checks' } },
+      { branch: 'main', variables: { WORKSPACE_OWNER: 'alice', WORKSPACE_JOB: 'checks', WORKSPACE_BUILD_TITLE: 'session rename' } },
+    ]);
+  } finally {
+    workspaceBuildsService.setSource();
+  }
+});
+
+test('titles are one line of at most 80 characters, with a default per job', () => {
+  assert.equal(normalizeBuildTitle(undefined, 'checks'), 'Manual checks');
+  assert.equal(normalizeBuildTitle('   ', 'deploy'), 'Deploy workspace-ui');
+  assert.equal(normalizeBuildTitle('a\tb\r\nc', 'checks'), 'a b c');
+  assert.equal(normalizeBuildTitle('x'.repeat(200), 'checks').length, 80);
+});
+
+test('Woodpecker errors other than not-found stay unavailable, not a missing build', async () => {
+  workspaceBuildsService.setSource({
+    serverUrl: 'http://woodpecker.test',
+    readToken: async () => 'token',
+    fetch: async (url) => (url.endsWith('/lookup/buildadmin/cloudcli-checks')
+      ? { ok: true, status: 200, json: async () => ({ id: 1 }) }
+      : { ok: false, status: 500, json: async () => null }),
+  });
+  try {
+    await assert.rejects(workspaceBuildsService.getBuild('alice', 12), { code: 'BUILDS_UNAVAILABLE', statusCode: 503 });
   } finally {
     workspaceBuildsService.setSource();
   }
@@ -138,9 +185,9 @@ test('the HTTP API scopes every call to the authenticated user, whatever the req
     assert.equal((await as('bob', '/abc')).status, 400);
 
     // A body naming another owner is ignored: the build goes to the session user.
-    const started = await as('alice', '', { method: 'POST', body: JSON.stringify({ owner: 'bob' }) });
+    const started = await as('alice', '', { method: 'POST', body: JSON.stringify({ owner: 'bob', title: 'auth login form' }) });
     assert.equal(started.status, 202);
-    assert.deepEqual(triggered, ['alice']);
+    assert.deepEqual(triggered.map((run) => [run.variables.WORKSPACE_OWNER, run.variables.WORKSPACE_BUILD_TITLE]), [['alice', 'auth login form']]);
 
     assert.equal((await as('')).status, 401);
   } finally {

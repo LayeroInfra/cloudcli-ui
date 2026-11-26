@@ -1867,6 +1867,9 @@ export type SandboxCommandService = {
 
 //----------------- WORKSPACE BUILDS ------------
 
+/** What a run does on the owner's Mac: run the checks, or build and ship the workspace UI. */
+export type WorkspaceBuildJob = 'checks' | 'deploy';
+
 /**
  * One run of the CloudUI checks pipeline on Woodpecker, as the workspace
  * builds API returns it to its owner. `status` is Woodpecker's word
@@ -1876,6 +1879,9 @@ export type SandboxCommandService = {
 export type WorkspaceBuild = {
   number: number;
   status: string;
+  job: WorkspaceBuildJob;
+  /** `WORKSPACE_BUILD_TITLE` of the run ("session rename"); empty for runs that predate titles. */
+  title: string;
   branch: string;
   event: string;
   message: string;

@@ -33,6 +33,12 @@ const UNKNOWN_LOOK: StatusLook = { icon: Clock, className: 'text-muted-foregroun
 
 const lookFor = (status: string): StatusLook => STATUS_LOOK[status] ?? { ...UNKNOWN_LOOK, label: status };
 
+/** A queued build no agent has taken after this long most likely means the owner's Mac is offline. */
+export const STALE_PENDING_MS = 2 * 60_000;
+
+const isStalePending = (build: WorkspaceBuild, now: number): boolean =>
+  build.status === 'pending' && !!build.createdAt && now - Date.parse(build.createdAt) > STALE_PENDING_MS;
+
 /** "12s", "3m 05s" between two ISO times, or from the start until now. */
 function formatDuration(start: string | null, end: string | null, now: number): string | null {
   if (!start) return null;
@@ -142,6 +148,7 @@ export default function WorkspaceBuildsPanel({ open, onClose, builds, error, isL
   // Ticks each second while a build runs, so its duration counts up.
   const [now, setNow] = useState(() => Date.now());
   const hasActive = builds.some((build) => ACTIVE_BUILD_STATUSES.has(build.status));
+  const hasStalePending = builds.some((build) => isStalePending(build, now));
   const newestFailure = builds[0] && (builds[0].status === 'failure' || builds[0].status === 'error') ? builds[0].number : null;
 
   useEffect(() => {
@@ -214,6 +221,11 @@ export default function WorkspaceBuildsPanel({ open, onClose, builds, error, isL
         {error && (
           <p role="alert" className="mb-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>
         )}
+        {hasStalePending && (
+          <p className="mb-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300" data-testid="builds-stale-pending">
+            {t('workspace.builds.stalePending', { defaultValue: 'A build has been queued for over 2 minutes: your Mac has not picked it up. Is Layero Workspace running there?' })}
+          </p>
+        )}
         {isLoading ? (
           [0, 1, 2].map((row) => <div key={row} className="mb-1 h-12 animate-pulse rounded-lg bg-muted" aria-hidden="true" />)
         ) : builds.length === 0 ? (
@@ -242,7 +254,13 @@ export default function WorkspaceBuildsPanel({ open, onClose, builds, error, isL
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-1.5 text-sm">
                         <span className="font-medium text-foreground">#{build.number}</span>
-                        <span className={cn('text-xs', look.className)}>{look.label}</span>
+                        {build.title && <span className="min-w-0 truncate text-foreground/90">{build.title}</span>}
+                        {build.job === 'deploy' && (
+                          <span className="rounded border border-border px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                            {t('workspace.builds.deploy', { defaultValue: 'Deploy' })}
+                          </span>
+                        )}
+                        <span className={cn('flex-shrink-0 text-xs', look.className)}>{look.label}</span>
                       </span>
                       <span className="block truncate text-[11px] text-muted-foreground">
                         {[build.branch, formatWhen(build.createdAt), duration && (active ? `${duration}…` : duration)].filter(Boolean).join(' · ')}

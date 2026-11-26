@@ -1,9 +1,8 @@
-import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import type { WorkspaceBuild, WorkspaceBuildDetail, WorkspaceBuildStep } from '@/shared/types.js';
+import type { WorkspaceBuild, WorkspaceBuildDetail, WorkspaceBuildJob, WorkspaceBuildStep } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
 /** Woodpecker's pipeline as its REST API returns it; only the fields read here. */
@@ -20,27 +19,28 @@ type WoodpeckerPipeline = {
   workflows?: Array<{ name?: string; children?: Array<{ id: number; name?: string; state?: string; exit_code?: number; started?: number; finished?: number }> }>;
 };
 
-type WoodpeckerLogLine = { line?: number; data?: string };
+type WoodpeckerLogLine = { line?: number; data?: string | null };
 
-type FetchLike = (url: string, init?: { method?: string; headers?: Record<string, string>; signal?: AbortSignal }) => Promise<{
+type FetchLike = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal }) => Promise<{
   ok: boolean;
   status: number;
   json(): Promise<unknown>;
 }>;
 
-type TriggerRunner = (owner: string) => Promise<string>;
-
-/** Where the service talks to Woodpecker and how it starts a build; replaceable in tests. */
+/** Where the service talks to Woodpecker; replaceable in tests. */
 type WorkspaceBuildsSource = {
   serverUrl: string;
   repo: string;
+  /** Branch of the pipeline repo a manual build runs on. */
+  branch: string;
   readToken: () => Promise<string | null>;
   fetch: FetchLike;
-  trigger: TriggerRunner;
 };
 
-/** Pipelines scanned per list request; only the session owner's are kept. */
+/** Pipelines per page when scanning for one owner's builds. */
 const SCAN_PAGE_SIZE = 50;
+/** Pages scanned at most; with several users one owner's builds can sit behind others'. */
+const SCAN_MAX_PAGES = 3;
 /** Builds the drawer shows. */
 const LIST_LIMIT = 20;
 /** Lines of a step's log the drawer shows. */
@@ -48,15 +48,22 @@ const LOG_TAIL_LINES = 80;
 /** Collapses a burst of polls from several tabs into one Woodpecker request. */
 const LIST_CACHE_MS = 1500;
 const REQUEST_TIMEOUT_MS = 8000;
-const TRIGGER_TIMEOUT_MS = 30_000;
+/** The same cap `workspace-trigger-build` applies to a title. */
+const TITLE_MAX_LENGTH = 80;
 
 const TOKEN_FILE = path.join(os.homedir(), '.local', 'state', 'woodpecker', 'user.token');
-const TRIGGER_BIN = path.join(os.homedir(), '.local', 'bin', 'workspace-trigger-build');
+
+/** Default titles, the same `workspace-trigger-build` uses, so both paths name runs alike. */
+const DEFAULT_TITLES: Record<WorkspaceBuildJob, string> = {
+  checks: 'Manual checks',
+  deploy: 'Deploy workspace-ui',
+};
 
 const defaultSource = (): WorkspaceBuildsSource => ({
   // Loopback only: Woodpecker is never reached from, or exposed to, the browser.
   serverUrl: process.env.WOODPECKER_SERVER || 'http://127.0.0.1:8000',
   repo: process.env.WORKSPACE_BUILDS_REPO || 'buildadmin/cloudcli-checks',
+  branch: process.env.WOODPECKER_BRANCH || 'main',
   readToken: async () => {
     if (process.env.WOODPECKER_TOKEN?.trim()) return process.env.WOODPECKER_TOKEN.trim();
     try {
@@ -66,16 +73,6 @@ const defaultSource = (): WorkspaceBuildsSource => ({
     }
   },
   fetch: (url, init) => fetch(url, init),
-  // The VM helper owns how a build is started; the owner is the only input,
-  // and it always comes from the authenticated session.
-  trigger: (owner) => new Promise((resolve, reject) => {
-    execFile(
-      process.env.WORKSPACE_TRIGGER_BUILD_BIN || TRIGGER_BIN,
-      [],
-      { env: { ...process.env, WORKSPACE_OWNER: owner }, timeout: TRIGGER_TIMEOUT_MS },
-      (error, stdout, stderr) => (error ? reject(new Error(String(stderr || error.message).trim())) : resolve(String(stdout))),
-    );
-  }),
 });
 
 let source: WorkspaceBuildsSource = defaultSource();
@@ -84,34 +81,49 @@ let listCache: { at: number; pipelines: WoodpeckerPipeline[] } | null = null;
 
 /**
  * The Woodpecker label value for a CloudUI username, normalised exactly as
- * `workspace-trigger-build` does: lower case, runs of anything but
- * `a-z0-9_-` become `-`, leading and trailing dashes dropped.
+ * `normalize_workspace_owner` in `~/.local/bin/workspace-owner-lib.sh` does:
+ * lower case, runs of anything but `a-z0-9_-` become `-`, leading and
+ * trailing dashes dropped.
  */
 export function normalizeWorkspaceOwner(username: string): string {
   return username.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
-function unavailable(message: string): AppError {
-  return new AppError(message, { code: 'BUILDS_UNAVAILABLE', statusCode: 503 });
+/** One line, collapsed spaces, at most 80 characters: what Woodpecker stores as the run's title. */
+export function normalizeBuildTitle(title: string | undefined, job: WorkspaceBuildJob): string {
+  const clean = (title ?? '').replace(/[\n\r\t]/g, ' ').replace(/ {2,}/g, ' ').trim().slice(0, TITLE_MAX_LENGTH).trim();
+  return clean || DEFAULT_TITLES[job];
 }
 
-async function woodpecker<T>(pathname: string): Promise<T> {
+/** Woodpecker could not be asked, or did not answer usefully. `status` is its HTTP status when it answered. */
+class WoodpeckerError extends AppError {
+  readonly upstreamStatus: number | null;
+
+  constructor(message: string, upstreamStatus: number | null = null) {
+    super(message, { code: 'BUILDS_UNAVAILABLE', statusCode: 503 });
+    this.upstreamStatus = upstreamStatus;
+  }
+}
+
+async function woodpecker<T>(pathname: string, init: { method?: 'GET' | 'POST'; body?: unknown } = {}): Promise<T> {
   const token = await source.readToken();
-  if (!token) throw unavailable('Woodpecker is not configured on this server (no token).');
+  if (!token) throw new WoodpeckerError('Woodpecker is not configured on this server (no token).');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}`, Accept: 'application/json' };
+    if (init.body !== undefined) headers['Content-Type'] = 'application/json';
     const response = await source.fetch(`${source.serverUrl}${pathname}`, {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      method: init.method ?? 'GET',
+      headers,
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
       signal: controller.signal,
     });
-    if (!response.ok) {
-      throw unavailable(`Woodpecker answered ${response.status}.`);
-    }
+    if (!response.ok) throw new WoodpeckerError(`Woodpecker answered ${response.status}.`, response.status);
     return (await response.json()) as T;
   } catch (error) {
     if (error instanceof AppError) throw error;
-    throw unavailable('Woodpecker is unreachable.');
+    throw new WoodpeckerError('Woodpecker is unreachable.');
   } finally {
     clearTimeout(timer);
   }
@@ -124,15 +136,36 @@ async function repoId(): Promise<number> {
   return repo.id;
 }
 
+/** The newest pipelines of the repo, a few pages deep; cached briefly so polling tabs share one scan. */
+async function recentPipelines(): Promise<WoodpeckerPipeline[]> {
+  const now = Date.now();
+  if (listCache && now - listCache.at <= LIST_CACHE_MS) return listCache.pipelines;
+  const id = await repoId();
+  const pipelines: WoodpeckerPipeline[] = [];
+  for (let page = 1; page <= SCAN_MAX_PAGES; page += 1) {
+    const batch = await woodpecker<WoodpeckerPipeline[] | null>(`/api/repos/${id}/pipelines?page=${page}&perPage=${SCAN_PAGE_SIZE}`);
+    const rows = Array.isArray(batch) ? batch : [];
+    pipelines.push(...rows);
+    if (rows.length < SCAN_PAGE_SIZE) break;
+  }
+  listCache = { at: now, pipelines };
+  return pipelines;
+}
+
 const seconds = (value: number | undefined): string | null => (value && value > 0 ? new Date(value * 1000).toISOString() : null);
 
 /** Pipelines without the owner variable predate owner routing and belong to nobody. */
 const ownerOf = (pipeline: WoodpeckerPipeline): string => pipeline.variables?.WORKSPACE_OWNER ?? '';
 
+/** Runs from before `WORKSPACE_JOB` existed were all checks. */
+const jobOf = (pipeline: WoodpeckerPipeline): WorkspaceBuildJob => (pipeline.variables?.WORKSPACE_JOB === 'deploy' ? 'deploy' : 'checks');
+
 function toBuild(pipeline: WoodpeckerPipeline): WorkspaceBuild {
   return {
     number: pipeline.number,
     status: pipeline.status,
+    job: jobOf(pipeline),
+    title: pipeline.variables?.WORKSPACE_BUILD_TITLE?.trim() || '',
     branch: pipeline.branch ?? '',
     event: pipeline.event ?? '',
     message: pipeline.message ?? '',
@@ -149,23 +182,20 @@ function decodeLogLine(line: WoodpeckerLogLine): string {
   return line.data ? Buffer.from(line.data, 'base64').toString('utf8').replace(/\n$/, '').replace(ANSI_ESCAPE, '') : '';
 }
 
+const notFound = () => new AppError('Build not found.', { code: 'BUILD_NOT_FOUND', statusCode: 404 });
+
 /**
  * Builds of the CloudUI checks pipeline, scoped to one user: every read and
- * trigger takes the owner from the authenticated session, so one user never
- * sees, or starts, another user's builds.
+ * trigger takes the owner from the authenticated session. This is a view
+ * filter for a trusted team, not a security boundary: anyone with a shell on
+ * the VM holds the same Woodpecker token.
  */
 export const workspaceBuildsService = {
   /** The newest builds whose `WORKSPACE_OWNER` is this user, newest first. */
   async listBuilds(username: string): Promise<WorkspaceBuild[]> {
     const owner = normalizeWorkspaceOwner(username);
     if (!owner) return [];
-    const now = Date.now();
-    if (!listCache || now - listCache.at > LIST_CACHE_MS) {
-      const id = await repoId();
-      const pipelines = await woodpecker<WoodpeckerPipeline[]>(`/api/repos/${id}/pipelines?page=1&perPage=${SCAN_PAGE_SIZE}`);
-      listCache = { at: now, pipelines: Array.isArray(pipelines) ? pipelines : [] };
-    }
-    return listCache.pipelines
+    return (await recentPipelines())
       .filter((pipeline) => ownerOf(pipeline) === owner)
       .slice(0, LIST_LIMIT)
       .map(toBuild);
@@ -178,17 +208,16 @@ export const workspaceBuildsService = {
    */
   async getBuild(username: string, number: number, stepId?: number): Promise<WorkspaceBuildDetail> {
     const owner = normalizeWorkspaceOwner(username);
+    if (!owner) throw notFound();
     const id = await repoId();
     let pipeline: WoodpeckerPipeline;
     try {
       pipeline = await woodpecker<WoodpeckerPipeline>(`/api/repos/${id}/pipelines/${number}`);
     } catch (error) {
-      if (error instanceof AppError && /answered 404/.test(error.message)) pipeline = { number, status: '' };
-      else throw error;
+      if (error instanceof WoodpeckerError && error.upstreamStatus === 404) throw notFound();
+      throw error;
     }
-    if (!owner || ownerOf(pipeline) !== owner) {
-      throw new AppError('Build not found.', { code: 'BUILD_NOT_FOUND', statusCode: 404 });
-    }
+    if (ownerOf(pipeline) !== owner) throw notFound();
     const steps: WorkspaceBuildStep[] = (pipeline.workflows ?? []).flatMap((workflow) => (workflow.children ?? []).map((step) => ({
       id: step.id,
       name: step.name ?? '',
@@ -202,31 +231,40 @@ export const workspaceBuildsService = {
       ?? steps.at(-1);
     let logTail: string[] = [];
     if (logStep && logStep.state !== 'pending') {
-      const lines = await woodpecker<WoodpeckerLogLine[]>(`/api/repos/${id}/logs/${number}/${logStep.id}`).catch(() => []);
+      const lines = await woodpecker<WoodpeckerLogLine[] | null>(`/api/repos/${id}/logs/${number}/${logStep.id}`).catch(() => []);
       logTail = (Array.isArray(lines) ? lines : []).slice(-LOG_TAIL_LINES).map(decodeLogLine);
     }
     return { ...toBuild(pipeline), steps, logStepId: logStep?.id ?? null, logTail };
   },
 
-  /** Starts the checks pipeline on this user's Mac; returns the new build number when the helper printed one. */
-  async triggerBuild(username: string): Promise<{ number: number | null }> {
+  /**
+   * Starts a checks run on this user's Mac: a manual pipeline whose
+   * `WORKSPACE_OWNER` variable becomes the `owner` label only that Mac's
+   * agent picks up. Same variables `workspace-trigger-build` sets.
+   */
+  async triggerBuild(username: string, options: { title?: string } = {}): Promise<{ number: number | null }> {
     const owner = normalizeWorkspaceOwner(username);
     if (!owner) {
       throw new AppError('A signed-in user is required to start a build.', { code: 'USER_REQUIRED', statusCode: 401 });
     }
-    let output: string;
-    try {
-      output = await source.trigger(owner);
-    } catch (error) {
-      throw unavailable(error instanceof Error && error.message ? error.message : 'The build could not be started.');
-    }
+    const job: WorkspaceBuildJob = 'checks';
+    const id = await repoId();
+    const pipeline = await woodpecker<Partial<WoodpeckerPipeline> | null>(`/api/repos/${id}/pipelines`, {
+      method: 'POST',
+      body: {
+        branch: source.branch,
+        variables: {
+          WORKSPACE_OWNER: owner,
+          WORKSPACE_JOB: job,
+          WORKSPACE_BUILD_TITLE: normalizeBuildTitle(options.title, job),
+        },
+      },
+    });
     listCache = null;
-    // The helper prints woodpecker-cli's table: a header, then "NUMBER STATUS ...".
-    const match = /^\s*(\d+)\s+\w+/m.exec(output.split('\n').slice(1).join('\n'));
-    return { number: match ? Number(match[1]) : null };
+    return { number: typeof pipeline?.number === 'number' ? pipeline.number : null };
   },
 
-  /** Test hook: replace the Woodpecker endpoint, token, fetch and trigger; no argument restores the defaults. */
+  /** Test hook: replace the Woodpecker endpoint, token and fetch; no argument restores the defaults. */
   setSource(next?: Partial<WorkspaceBuildsSource>): void {
     source = { ...defaultSource(), ...next };
     repoIdCache = null;
