@@ -14,8 +14,9 @@ mkdir -p "$LOG_DIR"
 
 # local:remote. 5173 inside the workspace is 15173 here, so a Vite server the
 # Mac runs itself on 5173 keeps working. Mirror changes in
-# src/modules/site-preview/SitePreviewPanel.tsx (TUNNELED_PORTS).
-PREVIEW_PORTS=(5174:5174 8080:8080 15173:5173 8000:8000)
+# src/modules/site-preview/SitePreviewPanel.tsx (TUNNELED_PORTS). Not 8000:
+# on the VM that is Woodpecker, not an API a dev server could use.
+PREVIEW_PORTS=(5174:5174 8080:8080 15173:5173)
 
 if [ -f "$PID_FILE" ]; then
   pid="$(cat "$PID_FILE")"
