@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 
 /** The docks and drawers the workspace can open beside the active tab. */
-type WorkspacePanelId = 'files' | 'terminal' | 'browser' | 'background' | 'builds';
+type WorkspacePanelId = 'files' | 'terminal' | 'browser' | 'background' | 'builds' | 'memory';
 
 type WorkspacePanelsState = Record<WorkspacePanelId, boolean>;
 
 const STORAGE_KEY = 'workspace-panels-open';
 
-const CLOSED_PANELS: WorkspacePanelsState = { files: false, terminal: false, browser: false, background: false, builds: false };
+const CLOSED_PANELS: WorkspacePanelsState = { files: false, terminal: false, browser: false, background: false, builds: false, memory: false };
 
 // Remembered per browser so a reload keeps the layout the person left. Storage
 // can throw in private windows; the workspace then simply starts closed.
@@ -24,6 +24,7 @@ function readSavedPanels(): WorkspacePanelsState {
       // The cards float over the chat; reopening them on load would cover it.
       background: false,
       builds: false,
+      memory: false,
     };
   } catch {
     return CLOSED_PANELS;
@@ -32,8 +33,8 @@ function readSavedPanels(): WorkspacePanelsState {
 
 /**
  * Open/closed state of the workspace's file explorer, terminal dock, browser
- * panel and the background-tasks and builds cards (which may be open
- * together, stacked over the chat), plus their keyboard
+ * panel, the background-tasks and builds cards (which may be open
+ * together, stacked over the chat) and the agent-memory card, plus their keyboard
  * shortcuts: Ctrl+Shift+E (files, as in Cursor and VS Code),
  * Ctrl+` (terminal), Ctrl+Shift+B (browser), Ctrl+Shift+J (background).
  */

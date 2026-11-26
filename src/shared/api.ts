@@ -308,6 +308,14 @@ export const api = {
     get: (number: number, options: ApiRequestOptions = {}) => get(`/api/workspace/builds/${number}`, options),
     trigger: () => post('/api/workspace/builds', {}),
   },
+  /** Claude's auto-memory across projects and the global CLAUDE.md; the same for every user of the workspace. */
+  agentMemory: {
+    map: (options: ApiRequestOptions = {}) => get('/api/workspace/memory', options),
+    instructions: (projectPath?: string, options: ApiRequestOptions = {}) =>
+      get(`/api/workspace/memory/instructions${query({ projectPath })}`, options),
+    saveInstructions: (content: string, baseUpdatedAt: string | null) =>
+      put('/api/workspace/memory/instructions', { content, baseUpdatedAt }),
+  },
   scheduledMessages: {
     list: (sessionId?: string) =>
       get(`/api/scheduled-messages${sessionId ? query({ sessionId }) : ''}`),

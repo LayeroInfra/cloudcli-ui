@@ -1,4 +1,4 @@
-import { Activity, FolderTree, Globe, Hammer, SquareTerminal, type LucideIcon } from 'lucide-react';
+import { Activity, Brain, FolderTree, Globe, Hammer, SquareTerminal, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import type { Project, ProjectSession } from '@/shared/types';
@@ -28,6 +28,8 @@ type WorkspaceHeaderProps = {
   background: PanelToggle & { runningCount: number };
   /** The user's Woodpecker builds card; the badge counts queued and running builds. */
   builds: PanelToggle & { activeCount: number };
+  /** The agent's memory and global instructions, shared by the whole workspace. */
+  memory: PanelToggle;
 };
 
 type PanelButtonProps = {
@@ -82,6 +84,7 @@ export default function WorkspaceHeader({
   browser,
   background,
   builds,
+  memory,
 }: WorkspaceHeaderProps) {
   const { t } = useTranslation();
 
@@ -124,6 +127,12 @@ export default function WorkspaceHeader({
             active={builds.open}
             onClick={builds.onToggle}
             badge={builds.activeCount}
+          />
+          <PanelButton
+            icon={Brain}
+            label={t('workspace.memory.title', { defaultValue: 'Agent memory' })}
+            active={memory.open}
+            onClick={memory.onToggle}
           />
           <PanelButton
             icon={SquareTerminal}

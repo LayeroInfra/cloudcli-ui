@@ -2095,3 +2095,81 @@ type TaskStatus =
 
 /** A TaskMaster task's priority; high, medium and low are the known values and the string fallback tolerates anything else TaskMaster emits. */
 type TaskPriority = 'high' | 'medium' | 'low' | string;
+
+/**
+ * Claude Code's auto-memory as the workspace memory API returns it: one store
+ * per `~/.claude/projects/<dir>/memory` directory, shared by every user of the
+ * workspace (one OS user, one `~/.claude`).
+ */
+export type AgentMemoryMap = {
+  /** The `~/.claude/projects` directory that was scanned. */
+  root: string;
+  stores: AgentMemoryStore[];
+};
+
+export type AgentMemoryStore = {
+  /** The directory name under `projects`, e.g. `-srv-Layero-cloud-cli`. */
+  id: string;
+  /** The working directory its sessions ran in, read from a transcript; null when none says. */
+  projectPath: string | null;
+  index: {
+    exists: boolean;
+    /** Lines in MEMORY.md; sessions load only the first 200. */
+    lines: number;
+    entries: AgentMemoryIndexEntry[];
+    raw: string;
+  };
+  facts: AgentMemoryFact[];
+  issues: AgentMemoryIssue[];
+  /** The newest change to the index or any fact. */
+  updatedAt: string | null;
+};
+
+/** One `- [Title](file.md) — hook` line of MEMORY.md. */
+export type AgentMemoryIndexEntry = {
+  title: string;
+  file: string;
+  hook: string;
+  line: number;
+  /** The file it points to does not exist. */
+  missing: boolean;
+};
+
+/** One fact file; `type` is the frontmatter's `metadata.type` (user, feedback, project, reference). */
+export type AgentMemoryFact = {
+  file: string;
+  name: string | null;
+  description: string | null;
+  type: string | null;
+  body: string;
+  /** `[[slug]]` links in the body. */
+  links: string[];
+  hasFrontmatter: boolean;
+  /** Listed in MEMORY.md; a fact that is not never reaches a session. */
+  inIndex: boolean;
+  size: number;
+  updatedAt: string;
+};
+
+export type AgentMemoryIssue = {
+  kind: 'no-index' | 'index-truncated' | 'missing-file' | 'not-indexed' | 'no-frontmatter' | 'broken-link' | 'duplicate';
+  file?: string;
+  detail: string;
+};
+
+/** `~/.claude/CLAUDE.md`: the instructions every Claude session loads, whatever its project. */
+export type AgentInstructions = {
+  path: string;
+  exists: boolean;
+  content: string;
+  /** The version an edit must start from; null while the file does not exist. */
+  updatedAt: string | null;
+};
+
+/** A per-project instruction file a session in that project loads on top of the global one. */
+export type AgentProjectInstructionFile = {
+  path: string;
+  /** Relative to the project: `CLAUDE.md`, `CLAUDE.local.md`, `.claude/CLAUDE.md`. */
+  name: string;
+  exists: boolean;
+};
