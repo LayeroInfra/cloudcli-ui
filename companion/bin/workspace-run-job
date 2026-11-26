@@ -1,0 +1,15 @@
+#!/bin/bash
+# The one command the Woodpecker pipeline runs (see ci/cloudcli-checks.woodpecker.yml):
+# picks the job from WORKSPACE_JOB, which the trigger sets.
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+JOB="$(printf '%s' "${WORKSPACE_JOB:-checks}" | tr '[:upper:]' '[:lower:]')"
+echo "workspace-run-job job=$JOB owner=${WORKSPACE_OWNER:-} title=${WORKSPACE_BUILD_TITLE:-}"
+case "$JOB" in
+  checks) exec "$HERE/workspace-run-checks" ;;
+  deploy) exec "$HERE/workspace-run-deploy" ;;
+  *)
+    echo "unknown WORKSPACE_JOB=$JOB (checks|deploy)" >&2
+    exit 2
+    ;;
+esac

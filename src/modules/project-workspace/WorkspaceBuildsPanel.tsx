@@ -33,6 +33,12 @@ const UNKNOWN_LOOK: StatusLook = { icon: Clock, className: 'text-muted-foregroun
 
 const lookFor = (status: string): StatusLook => STATUS_LOOK[status] ?? { ...UNKNOWN_LOOK, label: status };
 
+/** A queued build no agent has taken after this long most likely means the owner's Mac is offline. */
+export const STALE_PENDING_MS = 2 * 60_000;
+
+const isStalePending = (build: WorkspaceBuild, now: number): boolean =>
+  build.status === 'pending' && !!build.createdAt && now - Date.parse(build.createdAt) > STALE_PENDING_MS;
+
 /** "12s", "3m 05s" between two ISO times, or from the start until now. */
 function formatDuration(start: string | null, end: string | null, now: number): string | null {
   if (!start) return null;
@@ -57,9 +63,27 @@ function StatusIcon({ status }: { status: string }) {
   return <Icon className={cn('h-4 w-4 flex-shrink-0', look.className, look.spin && 'animate-spin')} aria-hidden="true" />;
 }
 
-/** The steps and log tail of one build, refetched every 3 s while it is still active. */
-function BuildDetail({ number, active }: { number: number; active: boolean }) {
+/** The steps and log tail of one build, refetched every 3 s while it is still active; an active one can be cancelled. */
+function BuildDetail({ number, active, onChanged }: { number: number; active: boolean; onChanged: () => void }) {
   const { t } = useTranslation();
+  // Set while the cancel request is in flight.
+  const [isCancelling, setIsCancelling] = useState(false);
+  // Why cancelling failed, if it did.
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  const cancel = async () => {
+    setIsCancelling(true);
+    setCancelError(null);
+    try {
+      const response = await api.workspaceBuilds.cancel(number);
+      if (!response.ok) setCancelError(t('workspace.builds.cancelFailed', { defaultValue: 'Could not cancel this build.' }));
+      else onChanged();
+    } catch {
+      setCancelError(t('workspace.builds.cancelFailed', { defaultValue: 'Could not cancel this build.' }));
+    } finally {
+      setIsCancelling(false);
+    }
+  };
   // The last detail answer; null until the first one arrives.
   const [detail, setDetail] = useState<WorkspaceBuildDetail | null>(null);
   // Why the detail could not be read, if it could not.
@@ -97,6 +121,20 @@ function BuildDetail({ number, active }: { number: number; active: boolean }) {
   const logStep = detail.steps.find((step) => step.id === detail.logStepId);
   return (
     <div className="space-y-2 px-3 pb-3" data-testid={`build-detail-${number}`}>
+      {active && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void cancel()}
+            disabled={isCancelling}
+            className="flex h-6 items-center gap-1 rounded-md border border-border px-2 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-60"
+          >
+            {isCancelling ? <Loader2 className="h-3 w-3 animate-spin" /> : <Ban className="h-3 w-3" />}
+            {t('workspace.builds.cancel', { defaultValue: 'Cancel build' })}
+          </button>
+          {cancelError && <span className="text-[11px] text-destructive">{cancelError}</span>}
+        </div>
+      )}
       {detail.steps.length > 0 && (
         <ul className="space-y-1">
           {detail.steps.map((step) => (
@@ -142,6 +180,7 @@ export default function WorkspaceBuildsPanel({ open, onClose, builds, error, isL
   // Ticks each second while a build runs, so its duration counts up.
   const [now, setNow] = useState(() => Date.now());
   const hasActive = builds.some((build) => ACTIVE_BUILD_STATUSES.has(build.status));
+  const hasStalePending = builds.some((build) => isStalePending(build, now));
   const newestFailure = builds[0] && (builds[0].status === 'failure' || builds[0].status === 'error') ? builds[0].number : null;
 
   useEffect(() => {
@@ -214,6 +253,11 @@ export default function WorkspaceBuildsPanel({ open, onClose, builds, error, isL
         {error && (
           <p role="alert" className="mb-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>
         )}
+        {hasStalePending && (
+          <p className="mb-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300" data-testid="builds-stale-pending">
+            {t('workspace.builds.stalePending', { defaultValue: 'A build has been queued for over 2 minutes: your Mac has not picked it up. Is Layero Workspace running there?' })}
+          </p>
+        )}
         {isLoading ? (
           [0, 1, 2].map((row) => <div key={row} className="mb-1 h-12 animate-pulse rounded-lg bg-muted" aria-hidden="true" />)
         ) : builds.length === 0 ? (
@@ -242,7 +286,13 @@ export default function WorkspaceBuildsPanel({ open, onClose, builds, error, isL
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-1.5 text-sm">
                         <span className="font-medium text-foreground">#{build.number}</span>
-                        <span className={cn('text-xs', look.className)}>{look.label}</span>
+                        {build.title && <span className="min-w-0 truncate text-foreground/90">{build.title}</span>}
+                        {build.job === 'deploy' && (
+                          <span className="rounded border border-border px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                            {t('workspace.builds.deploy', { defaultValue: 'Deploy' })}
+                          </span>
+                        )}
+                        <span className={cn('flex-shrink-0 text-xs', look.className)}>{look.label}</span>
                       </span>
                       <span className="block truncate text-[11px] text-muted-foreground">
                         {[build.branch, formatWhen(build.createdAt), duration && (active ? `${duration}…` : duration)].filter(Boolean).join(' · ')}
@@ -250,7 +300,7 @@ export default function WorkspaceBuildsPanel({ open, onClose, builds, error, isL
                     </span>
                     <ChevronRight className={cn('h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform', isOpen && 'rotate-90')} aria-hidden="true" />
                   </button>
-                  {isOpen && <BuildDetail number={build.number} active={active} />}
+                  {isOpen && <BuildDetail number={build.number} active={active} onChanged={onRefresh} />}
                 </li>
               );
             })}

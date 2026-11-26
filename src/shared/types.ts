@@ -1445,6 +1445,9 @@ export type ProjectWorkspaceShellProps = RealtimeProps & {
   navigate: NavigateFunction;
 };
 
+/** What a run does on the owner's Mac: run the checks, or build and ship the workspace UI. */
+export type WorkspaceBuildJob = 'checks' | 'deploy';
+
 /**
  * One run of the CloudUI checks pipeline, as `/api/workspace/builds` returns
  * it to its owner and the workspace builds drawer lists it. `status` is
@@ -1454,6 +1457,9 @@ export type ProjectWorkspaceShellProps = RealtimeProps & {
 export type WorkspaceBuild = {
   number: number;
   status: string;
+  job: WorkspaceBuildJob;
+  /** `WORKSPACE_BUILD_TITLE` of the run ("session rename"); empty for runs that predate titles. */
+  title: string;
   branch: string;
   event: string;
   message: string;

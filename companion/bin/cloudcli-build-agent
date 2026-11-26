@@ -13,8 +13,10 @@ OWNER="$(identity_owner)"
 CHECKOUT="$(identity_get checkout)"
 mkdir -p "$LOG_DIR" "$ROOT/agent"
 
-# Install local check runner for Woodpecker steps
-install -m 755 "$ROOT/bin/workspace-run-checks" "$HOME/.local/bin/workspace-run-checks"
+# The commands the pipeline's local step runs (ci/cloudcli-checks.woodpecker.yml)
+for job in workspace-run-job workspace-run-checks workspace-run-deploy; do
+  install -m 755 "$ROOT/bin/$job" "$HOME/.local/bin/$job"
+done
 
 export WOODPECKER_SERVER="${WOODPECKER_SERVER:-127.0.0.1:19000}"
 export WOODPECKER_AGENT_SECRET

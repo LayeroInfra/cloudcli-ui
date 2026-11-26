@@ -3,18 +3,21 @@ import assert from 'node:assert/strict';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { test, vi } from 'vitest';
 
+// Init i18next so defaultValue templates like 'exit {{code}}' interpolate; a
+// react-i18next mock alone hangs vitest collect on the Mac agent (#29).
+import '@/modules/i18n';
 import type { WorkspaceBuild, WorkspaceBuildDetail } from '@/shared/types';
 
-const mocks = vi.hoisted(() => ({ get: vi.fn() }));
-vi.mock('@/shared/api', () => ({ api: { workspaceBuilds: { get: mocks.get, list: vi.fn(), trigger: vi.fn() } } }));
+const mocks = vi.hoisted(() => ({ get: vi.fn(), cancel: vi.fn() }));
+vi.mock('@/shared/api', () => ({ api: { workspaceBuilds: { get: mocks.get, cancel: mocks.cancel, list: vi.fn(), trigger: vi.fn() } } }));
 
 const { default: WorkspaceBuildsPanel } = await import('@/modules/project-workspace/WorkspaceBuildsPanel');
 
 const now = Date.now();
 const BUILDS: WorkspaceBuild[] = [
-  { number: 14, status: 'failure', branch: 'main', event: 'manual', message: '', createdAt: new Date(now - 60_000).toISOString(), startedAt: new Date(now - 60_000).toISOString(), finishedAt: new Date(now - 50_000).toISOString() },
-  { number: 13, status: 'running', branch: 'main', event: 'manual', message: '', createdAt: new Date(now - 20_000).toISOString(), startedAt: new Date(now - 20_000).toISOString(), finishedAt: null },
-  { number: 12, status: 'pending', branch: 'main', event: 'manual', message: '', createdAt: new Date(now - 5_000).toISOString(), startedAt: null, finishedAt: null },
+  { number: 14, status: 'failure', job: 'checks', title: 'session rename', branch: 'main', event: 'manual', message: '', createdAt: new Date(now - 60_000).toISOString(), startedAt: new Date(now - 60_000).toISOString(), finishedAt: new Date(now - 50_000).toISOString() },
+  { number: 13, status: 'running', job: 'deploy', title: '', branch: 'main', event: 'manual', message: '', createdAt: new Date(now - 20_000).toISOString(), startedAt: new Date(now - 20_000).toISOString(), finishedAt: null },
+  { number: 12, status: 'pending', job: 'checks', title: '', branch: 'main', event: 'manual', message: '', createdAt: new Date(now - 5_000).toISOString(), startedAt: null, finishedAt: null },
 ];
 
 const DETAIL: WorkspaceBuildDetail = {
@@ -55,4 +58,29 @@ test('run checks starts a build; an error from the API is shown', () => {
 test('a closed drawer renders nothing', () => {
   const { container } = render(<WorkspaceBuildsPanel {...props({ open: false })} />);
   assert.equal(container.firstChild, null);
+});
+
+test('a run shows its title and marks a deploy', () => {
+  mocks.get.mockResolvedValue({ ok: true, json: async () => ({ data: DETAIL }) });
+  render(<WorkspaceBuildsPanel {...props()} />);
+  assert.ok(screen.getByText('session rename'));
+  assert.equal(screen.getAllByText('Deploy').length, 1);
+  assert.equal(screen.queryByTestId('builds-stale-pending'), null);
+});
+
+test('a build queued for minutes says the Mac has not picked it up', () => {
+  const stale: WorkspaceBuild = { ...BUILDS[2], createdAt: new Date(Date.now() - 5 * 60_000).toISOString() };
+  render(<WorkspaceBuildsPanel {...props({ builds: [stale] })} />);
+  assert.ok(screen.getByTestId('builds-stale-pending'));
+});
+
+test('an unfolded queued build can be cancelled, then the list refreshes', async () => {
+  mocks.get.mockResolvedValue({ ok: true, json: async () => ({ data: { ...DETAIL, number: 12, status: 'pending', steps: [], logStepId: null, logTail: [] } }) });
+  mocks.cancel.mockResolvedValue({ ok: true, json: async () => ({ data: { cancelled: true } }) });
+  const onRefresh = vi.fn();
+  render(<WorkspaceBuildsPanel {...props({ builds: [BUILDS[2]], onRefresh })} />);
+  fireEvent.click(screen.getByRole('button', { name: /#12/ }));
+  fireEvent.click(await waitFor(() => screen.getByRole('button', { name: /Cancel build/ })));
+  await waitFor(() => assert.equal(onRefresh.mock.calls.length, 1));
+  assert.deepEqual(mocks.cancel.mock.calls[0], [12]);
 });

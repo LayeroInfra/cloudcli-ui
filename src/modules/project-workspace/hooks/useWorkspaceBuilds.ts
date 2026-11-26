@@ -101,7 +101,7 @@ export function useWorkspaceBuilds(panelOpen: boolean) {
     } finally {
       setIsTriggering(false);
     }
-  }, [refresh]);
+  }, []);
 
   return {
     builds,
