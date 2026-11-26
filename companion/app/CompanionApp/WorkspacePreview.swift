@@ -44,7 +44,10 @@ final class WorkspacePreview: NSObject, WKScriptMessageHandler {
 
   weak var contentView: WorkspaceContentView?
   private let origin: URL
-  private let store = WKWebsiteDataStore.nonPersistent()
+  // The same persistent store as Companion browser windows: a sign-in or
+  // `?demo=1` flag set in the panel holds in an opened window, and across
+  // restarts. Reset from the app menu (BrowserWindow.addPreviewDataReset).
+  private let store = WKWebsiteDataStore.default()
   private var pages: [Int: PreviewPage] = [:]
 
   init(origin: URL) {
