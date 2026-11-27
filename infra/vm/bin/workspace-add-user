@@ -23,7 +23,7 @@ fi
 OWNER="$(normalize_workspace_owner "$USER_NAME")"
 cd "$HOME/.local/share/cloudcli-releases/workspace-ui/dist-server"
 node --input-type=module - "$USER_NAME" "$PASS" "$OWNER" <<'NODE'
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import Database from "better-sqlite3";
 import { homedir } from "node:os";
 

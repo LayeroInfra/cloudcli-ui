@@ -1,6 +1,6 @@
 // Fills a fresh Workspace stage with its fixtures, or turns a copy of the
 // production database into safe stage data. Run by infra/vm/bin/workspace-stage
-// from the staged release (so better-sqlite3 and bcryptjs resolve from its
+// from the staged release (so better-sqlite3 and bcrypt resolve from its
 // node_modules), with the stage server already up on STAGE_URL.
 //
 //   node ci/stage/seed.mjs fixtures   <home> <password>
@@ -16,7 +16,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import bcrypt from 'bcryptjs';
+import bcrypt from 'bcrypt';
 import Database from 'better-sqlite3';
 
 const [mode, home, password, prodDb] = process.argv.slice(2);
