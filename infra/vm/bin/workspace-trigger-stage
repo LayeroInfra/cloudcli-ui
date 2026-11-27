@@ -1,0 +1,35 @@
+#!/bin/bash
+# Put a CloudUI branch on the Workspace stage: WORKSPACE_OWNER's Mac builds the
+# commit and this VM runs it next to production (infra/vm/bin/workspace-stage).
+#
+#   workspace-trigger-stage                       # current branch of /srv/Layero/cloud-cli
+#   workspace-trigger-stage --ref feat/x          # another branch, e.g. a worktree's
+#   workspace-trigger-stage --reset               # start from fresh fixtures
+#   workspace-trigger-stage --reset --data prod-copy   # from a secret-free copy of production
+#
+# Then open https://<gateway>:9443/__stage/on in Companion; /__stage/off returns.
+# Owner comes only from WORKSPACE_OWNER, like every workspace-trigger-*.
+set -euo pipefail
+
+ARGS=()
+REF=""
+RESET=0
+DATA=fixtures
+TITLE=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --ref) REF="${2:-}"; shift 2 ;;
+    --reset) RESET=1; shift ;;
+    --data) DATA="${2:-}"; shift 2 ;;
+    --title) TITLE="${2:-}"; shift 2 ;;
+    --owner) echo "workspace-trigger-stage: --owner запрещён; owner только из WORKSPACE_OWNER" >&2; exit 2 ;;
+    *) echo "workspace-trigger-stage: unexpected argument $1" >&2; exit 2 ;;
+  esac
+done
+case "$DATA" in fixtures|prod-copy) ;; *) echo "--data must be fixtures or prod-copy" >&2; exit 2 ;; esac
+[ -n "$REF" ] && ARGS+=(--ref "$REF")
+[ -n "$TITLE" ] || TITLE="stage ${REF:-$(git -C /srv/Layero/cloud-cli symbolic-ref --quiet --short HEAD || echo HEAD)}$([ "$RESET" = 1 ] && echo " (reset, $DATA)")"
+
+exec "$HOME/.local/bin/workspace-trigger-build" --job stage --title "$TITLE" "${ARGS[@]}" \
+  --var "WORKSPACE_STAGE_RESET=$RESET" \
+  --var "WORKSPACE_STAGE_DATA=$DATA"

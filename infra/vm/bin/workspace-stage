@@ -1,0 +1,142 @@
+#!/bin/bash
+# The Workspace stage on this VM: one branch build of CloudUI next to the
+# production release, with its own data, its own users and a stand-in Claude
+# (ci/fake-claude), so a branch can be tried — migrations included — without
+# touching production or its sessions.
+#
+#   workspace-stage up <sha> [--reset] [--data fixtures|prod-copy]
+#                              install ~/.local/share/cloudcli-stage/incoming-<sha>
+#                              (rsynced by workspace-run-stage on a Mac) and (re)start it
+#   workspace-stage down       stop the stage server
+#   workspace-stage reset      stop it and drop its data (next up seeds again)
+#   workspace-stage status     what runs, from which branch, and the stage sign-in
+#   workspace-stage password   the stage users' password alone (for the e2e run)
+#
+# Open it: https://<gateway>:9443/__stage/on (Companion: the same window, the
+# stage banner shows at the bottom). Back to production: /__stage/off.
+# Data lives in ~/.local/state/workspace-stage/home — the stage server's HOME,
+# so its ~/.cloudcli, ~/.claude and terminals never see production's.
+#
+# Exit codes: 0 ok, 2 usage, 3 refused (bad stage, dependency change), 4 not healthy.
+set -euo pipefail
+
+SHARE="$HOME/.local/share/cloudcli-stage"
+RELEASE="$SHARE/release"
+STATE="$HOME/.local/state/workspace-stage"
+STAGE_HOME="$STATE/home"
+PASSWORD_FILE="$STATE/password"
+ENV_FILE="$STATE/stage.env"
+DEPS_ROOT="${WORKSPACE_DEPS_ROOT:-$HOME/src/cloudcli-ui}"
+PROD_DB="$HOME/.cloudcli/auth.db"
+SERVICE=workspace-stage.service
+PORT=3102
+LOCK="$STATE/stage.lock"
+
+usage() { sed -n '7,13p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+log() { echo "workspace-stage: $*"; }
+
+healthy() {
+  local i
+  for i in $(seq 1 40); do
+    if curl -fs -o /dev/null "http://127.0.0.1:$PORT/health"; then return 0; fi
+    sleep 1
+  done
+  return 1
+}
+
+stage_password() {
+  if [ ! -s "$PASSWORD_FILE" ]; then
+    mkdir -p "$STATE"
+    (umask 077; openssl rand -base64 18 | tr -d '/+=' | cut -c1-16 > "$PASSWORD_FILE")
+  fi
+  cat "$PASSWORD_FILE"
+}
+
+wipe_data() {
+  systemctl --user stop "$SERVICE" 2>/dev/null || true
+  rm -rf "$STAGE_HOME"
+}
+
+cmd_up() {
+  local sha="" reset=0 data=fixtures incoming ref asset seeded
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --reset) reset=1; shift ;;
+      --data) data="${2:-}"; shift 2 ;;
+      *) [ -z "$sha" ] && sha="$1" && shift || usage ;;
+    esac
+  done
+  [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || usage
+  case "$data" in fixtures|prod-copy) ;; *) usage ;; esac
+  incoming="$SHARE/incoming-$sha"
+
+  if [ ! -d "$incoming/dist" ] || [ ! -d "$incoming/dist-server" ] || [ "$(head -n1 "$incoming/SHIPPED_FROM" 2>/dev/null)" != "$sha" ]; then
+    log "refused $sha: incomplete stage $incoming"; rm -rf "$incoming"; exit 3
+  fi
+  # The stage runs on the release's node_modules (natives built for this VM), like production.
+  if ! cmp -s "$incoming/package-lock.json" "$DEPS_ROOT/package-lock.json"; then
+    log "refused $sha: package-lock.json differs from $DEPS_ROOT — a branch with new dependencies"
+    log "needs them installed first (operator: a separate npm ci for the stage is not set up yet)"
+    rm -rf "$incoming"; exit 3
+  fi
+  ref="$(sed -n 3p "$incoming/SHIPPED_FROM")"
+  asset="$(sed -n 2p "$incoming/SHIPPED_FROM")"
+
+  systemctl --user stop "$SERVICE" 2>/dev/null || true
+  rm -rf "$RELEASE"
+  mv "$incoming" "$RELEASE"
+  ln -sfn "$DEPS_ROOT/node_modules" "$RELEASE/node_modules"
+  chmod +x "$RELEASE/ci/fake-claude/claude.mjs"
+
+  [ "$reset" = 1 ] && wipe_data
+  seeded=1
+  if [ ! -d "$STAGE_HOME/.cloudcli" ]; then seeded=0; fi
+  mkdir -p "$STAGE_HOME/projects"
+
+  # The unit reads branch and commit from here: /health shows them, the banner prints them.
+  printf 'WORKSPACE_STAGE_REF=%s\nWORKSPACE_STAGE_SHA=%s\n' "$ref" "$sha" > "$ENV_FILE"
+
+  if [ "$seeded" = 0 ] && [ "$data" = prod-copy ]; then
+    # Copied before the server starts, or it would create an empty database first.
+    (cd "$RELEASE" && node ci/stage/seed.mjs prod-copy "$STAGE_HOME" "$(stage_password)" "$PROD_DB")
+  fi
+
+  systemctl --user daemon-reload
+  systemctl --user start "$SERVICE"
+  if ! healthy; then
+    log "stage $sha did not answer on 127.0.0.1:$PORT; journalctl --user -u $SERVICE -n 50"
+    exit 4
+  fi
+  if [ "$seeded" = 0 ] && [ "$data" = fixtures ]; then
+    (cd "$RELEASE" && STAGE_URL="http://127.0.0.1:$PORT" node ci/stage/seed.mjs fixtures "$STAGE_HOME" "$(stage_password)")
+  fi
+  local served
+  served="$(curl -s "http://127.0.0.1:$PORT/" | grep -o 'assets/index-[^"]*\.js' | head -n1 || true)"
+  [ "$served" = "$asset" ] || { log "stage serves $served, expected $asset"; exit 4; }
+  log "up: $ref @ ${sha:0:12} (data: $([ "$seeded" = 1 ] && echo kept || echo "$data"))"
+  log "open https://<gateway>:9443/__stage/on — sign in as stage-admin (password: workspace-stage status)"
+}
+
+cmd_status() {
+  if systemctl --user is-active --quiet "$SERVICE"; then
+    echo "running: $(sed -n 3p "$RELEASE/SHIPPED_FROM" 2>/dev/null) @ $(head -n1 "$RELEASE/SHIPPED_FROM" 2>/dev/null | cut -c1-12)"
+  else
+    echo "stopped$([ -f "$RELEASE/SHIPPED_FROM" ] && echo " (last: $(sed -n 3p "$RELEASE/SHIPPED_FROM") @ $(head -n1 "$RELEASE/SHIPPED_FROM" | cut -c1-12))")"
+  fi
+  echo "data: $STAGE_HOME$([ -d "$STAGE_HOME/.cloudcli" ] || echo ' (empty: next up seeds)')"
+  echo "sign in: stage-admin / $(stage_password)   (also stage-alice, stage-bob with fixtures)"
+  echo "open: https://<gateway>:9443/__stage/on   back: /__stage/off"
+}
+
+mkdir -p "$STATE" "$SHARE"
+exec 9>"$LOCK"
+flock -w 600 9 || { log "another workspace-stage run holds $LOCK"; exit 5; }
+
+case "${1:-}" in
+  up) shift; cmd_up "$@" ;;
+  down) systemctl --user stop "$SERVICE"; log "stopped" ;;
+  reset) wipe_data; log "data dropped; next up seeds it" ;;
+  status) cmd_status ;;
+  password) stage_password ;;
+  *) usage ;;
+esac

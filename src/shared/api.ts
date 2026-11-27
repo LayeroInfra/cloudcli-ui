@@ -199,6 +199,9 @@ const pluginAssetPath = (pluginName: string, assetFile: string) =>
 // import a named method instead of assembling URLs of their own.
 
 export const api = {
+  // Server liveness and, on the Workspace stage, which branch build it runs (no token required).
+  health: () => fetch('/health'),
+
   // Auth endpoints (no token required)
   auth: {
     status: () => fetch('/api/auth/status'),

@@ -1,0 +1,84 @@
+#!/bin/bash
+# Runs on this Mac inside a Woodpecker local step: builds one commit of a
+# CloudUI branch and puts it on the workspace VM as the stage — the second
+# server the gateway on :9443 sends you to after /__stage/on. Production and
+# its sessions are not touched.
+#
+# Set by workspace-trigger-stage (workspace-trigger-build --job stage) on the VM:
+#   WORKSPACE_STAGE_REF    branch of /srv/Layero/cloud-cli on the VM
+#   WORKSPACE_STAGE_SHA    commit to stage
+#   WORKSPACE_STAGE_RESET  1: start the stage from empty data (fixtures only)
+#   WORKSPACE_STAGE_DATA   fixtures (default) | prod-copy: copy of the production
+#                          database without secrets, for migration tests
+#   WORKSPACE_STAGE_E2E    1 (default): run the ci/e2e smoke against the stage
+#                          afterwards (Playwright WebKit, over an SSH forward);
+#                          0: skip. With prod-copy data the smoke is skipped: it
+#                          needs the fixtures' users and projects.
+#
+# The VM side (workspace-stage up) refuses a build whose package-lock differs
+# from the release's dependencies, like a deploy does.
+set -euo pipefail
+JOB_LIB="$(cd "$(dirname "$0")" && pwd)/lib/workspace-job-env.sh"
+[ -f "$JOB_LIB" ] || JOB_LIB="/Users/$(/usr/bin/id -un)/.local/share/cloudcli-companion/bin/lib/workspace-job-env.sh"
+# shellcheck source=lib/workspace-job-env.sh
+source "$JOB_LIB"
+# shellcheck source=lib/workspace-vm-commit.sh
+source "$(dirname "$JOB_LIB")/workspace-vm-commit.sh"
+
+ROOT="${WORKSPACE_STAGE_DIR:-$HOME/.cache/layero-workspace/stage}"
+DIR="$ROOT/cloud-cli"
+REMOTE_STAGE='~/.local/share/cloudcli-stage'
+RESET="${WORKSPACE_STAGE_RESET:-0}"
+DATA="${WORKSPACE_STAGE_DATA:-fixtures}"
+case "$RESET" in 0|1) ;; *) echo "WORKSPACE_STAGE_RESET must be 0 or 1" >&2; exit 2 ;; esac
+case "$DATA" in fixtures|prod-copy) ;; *) echo "WORKSPACE_STAGE_DATA must be fixtures or prod-copy" >&2; exit 2 ;; esac
+export PATH="${HOME}/.local/lib/layero-node/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+ssh_vm() { ssh -F "$VM_COMMIT_SSH_CONFIG" -o BatchMode=yes "$VM_COMMIT_SSH_HOST" "$@"; }
+
+vm_commit_lock "$ROOT" stage
+vm_commit_checkout "$DIR" "${WORKSPACE_STAGE_REF:-}" "${WORKSPACE_STAGE_SHA:-}"
+cd "$DIR"
+echo "workspace-run-stage owner=$JOB_OWNER ref=$VM_REF commit=$(git rev-parse --short HEAD) reset=$RESET data=$DATA"
+git log -1 --format='%h %an: %s'
+
+vm_commit_npm_ci "$DIR"
+npm run build
+
+ASSET="$(grep -o 'assets/index-[^"]*\.js' dist/index.html | head -n1)"
+[ -n "$ASSET" ] || { echo "no index asset in dist/index.html" >&2; exit 1; }
+printf '%s\n%s\n%s\n' "$VM_SHA" "$ASSET" "$VM_REF" > SHIPPED_FROM
+
+INCOMING="incoming-$VM_SHA"
+echo "==> rsync → $VM_COMMIT_SSH_HOST:$REMOTE_STAGE/$INCOMING"
+ssh_vm "mkdir -p $REMOTE_STAGE/$INCOMING"
+rsync -a --delete --exclude 'ci/e2e/node_modules/' -e "ssh -F $VM_COMMIT_SSH_CONFIG -o BatchMode=yes" \
+  dist dist-server package.json package-lock.json SHIPPED_FROM ci \
+  "$VM_COMMIT_SSH_HOST:$REMOTE_STAGE/$INCOMING/"
+
+echo "==> workspace-stage up"
+ARGS=(up "$VM_SHA" --data "$DATA")
+[ "$RESET" = 1 ] && ARGS+=(--reset)
+ssh_vm "\$HOME/.local/bin/workspace-stage ${ARGS[*]}"
+
+E2E="${WORKSPACE_STAGE_E2E:-1}"
+[ "$DATA" = fixtures ] || E2E=0
+[ "$E2E" = 1 ] || { echo "e2e smoke skipped"; exit 0; }
+
+echo "==> e2e smoke (ci/e2e, WebKit)"
+E2E_PORT="${WORKSPACE_STAGE_E2E_PORT:-13102}"
+ssh -F "$VM_COMMIT_SSH_CONFIG" -o BatchMode=yes -o ExitOnForwardFailure=yes -N \
+  -L "127.0.0.1:$E2E_PORT:127.0.0.1:3102" "$VM_COMMIT_SSH_HOST" &
+FORWARD=$!
+trap 'kill "$FORWARD" 2>/dev/null || true; rmdir "$VM_COMMIT_LOCK"' EXIT
+for _ in $(seq 1 20); do curl -fs -o /dev/null "http://127.0.0.1:$E2E_PORT/health" && break; sleep 0.5; done
+STAGE_PASSWORD="$(ssh_vm '$HOME/.local/bin/workspace-stage password')"
+cd "$DIR/ci/e2e"
+# Its own node_modules and lockfile; the browsers live in Playwright's cache, shared by runs.
+E2E_LOCK_HASH="$(shasum -a 256 package-lock.json | cut -d' ' -f1)"
+if [ "$(cat node_modules/.e2e-lock-hash 2>/dev/null)" != "$E2E_LOCK_HASH" ]; then
+  npm ci --no-audit --no-fund
+  echo "$E2E_LOCK_HASH" > node_modules/.e2e-lock-hash
+fi
+npx playwright install webkit
+STAGE_URL="http://127.0.0.1:$E2E_PORT" STAGE_PASSWORD="$STAGE_PASSWORD" \
+  E2E_OUTPUT_DIR="$ROOT/e2e-results" npx playwright test

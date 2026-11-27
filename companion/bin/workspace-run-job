@@ -9,8 +9,9 @@ case "$JOB" in
   checks) exec "$HERE/workspace-run-checks" ;;
   deploy) exec "$HERE/workspace-run-deploy" ;;
   make) exec "$HERE/workspace-run-make" ;;
+  stage) exec "$HERE/workspace-run-stage" ;;
   *)
-    echo "unknown WORKSPACE_JOB=$JOB (checks|deploy|make)" >&2
+    echo "unknown WORKSPACE_JOB=$JOB (checks|deploy|make|stage)" >&2
     exit 2
     ;;
 esac

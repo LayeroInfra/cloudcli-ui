@@ -209,12 +209,19 @@ const parseAuthenticatedBody = createBodyParsers('50mb');
 const parsePublicBody = createBodyParsers('1mb');
 
 // Public health check endpoint (no authentication required)
+// On the Workspace stage (infra/vm/bin/workspace-stage) the unit sets these, so
+// the stage banner can say which branch build is running.
+const WORKSPACE_STAGE = process.env.WORKSPACE_STAGE_REF
+    ? { ref: process.env.WORKSPACE_STAGE_REF, sha: process.env.WORKSPACE_STAGE_SHA || '' }
+    : undefined;
+
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
         installMode,
-        version: RUNNING_VERSION
+        version: RUNNING_VERSION,
+        ...(WORKSPACE_STAGE ? { stage: WORKSPACE_STAGE } : {}),
     });
 });
 
