@@ -86,8 +86,18 @@ OS-пользователь `layerodev`, общие проекты, сессии
   и коммит `/srv/Layero/cloud-cli`; `--ref <ветка>` — другая ветка (worktree);
   `--steps lint,typecheck` — только часть шагов (статус в GitHub такой прогон
   не ставит). Кнопка **Run checks** в Builds проверяет текущий коммит копии на VM.
-  Owner берётся только из `WORKSPACE_OWNER` сессии; `--owner` запрещён. Если в
-  сессии нет `WORKSPACE_OWNER` (так бывает), попроси человека нажать Run checks.
+  Owner берётся только из `WORKSPACE_OWNER` сессии; `--owner` запрещён. Сервер
+  кладёт в каждую сессию агента (Claude, Codex) и в терминал `WORKSPACE_OWNER`,
+  `WORKSPACE_USER` и git-личность пользователя (`GIT_AUTHOR_*`,
+  `GIT_COMMITTER_*` из профиля), так что агент запускает прогоны сам, а его
+  коммиты подписаны инициатором. В сессиях OpenCode и в сессиях, начатых до
+  выкатки этого (A1), их нет — тогда Run checks жмёт человек.
+- **Результат прогона:** триггер печатает номер (`run #N`); `--wait` у
+  `workspace-trigger-build`, `-stage`, `-make` или `workspace-run-wait <N>`
+  ждёт конца и печатает сводку шагов и строки падений каждого упавшего шага
+  (ошибки oxlint и tsc, `not ok` и `FAIL` тестов). Код выхода: `0` успех, `1`
+  упал, `3` таймаут, `4` Woodpecker недоступен. Агент запускает его фоном и
+  получает результат по завершении, а не опрашивает.
 - **Что проверяется — коммит, не файлы.** Mac забирает коммит с VM по ключу
   companion в свой клон `~/.cache/layero-workspace/checks/cloud-cli`, рабочую
   копию разработчика не трогает. Незакоммиченное не проверяется (триггер
@@ -115,6 +125,10 @@ OS-пользователь `layerodev`, общие проекты, сессии
   `builds panel smoke`), на языке задачи; один прогон — одна причина. Без дат,
   номеров, `misc`/`fix`/`wip`, без `test`/`check` в одиночку. «Manual checks»
   ставит кнопка в UI, агент так не называет.
+
+`infra/vm/install.sh` можно запускать и из worktree: файлы берутся из него,
+а сервисы (`cloudui-live`, история для `workspace-promote-release`) остаются на
+общей копии `/srv/Layero/cloud-cli` (`WORKSPACE_WORKING_COPY`).
 
 Mac запускает **установленную** копию скриптов (`~/.local/bin/workspace-run-*`):
 после правки `companion/bin` на Mac нужно обновить runtime
@@ -239,9 +253,8 @@ WORKSPACE_OWNER=<owner> workspace-trigger-make core image C=builder TAG=v123
 
 ## Открытые вопросы
 
-- В сессиях CloudUI нет `WORKSPACE_OWNER` — агент не может сам запустить прогон
-  (сервер подставляет owner только в `POST /api/workspace/builds`, в окружение
-  сессии Claude и терминала не передаёт). Пока человек называет owner сам.
+- `WORKSPACE_OWNER` в сессиях появится только после выкатки A1; OpenCode его
+  пока не получает. План остальных упоров агента — [`workspace-roadmap.md`](workspace-roadmap.md).
 - `cloudui-live` не подключён к шлюзу — правки клиента CloudUI видны на стенде,
   но не вживую (HMR).
 - Панель Builds знает только `checks|deploy`: прогоны `make` и `stage` показаны
