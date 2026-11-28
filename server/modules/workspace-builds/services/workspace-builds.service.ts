@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import type { WorkspaceBuild, WorkspaceBuildDetail, WorkspaceBuildJob, WorkspaceBuildStep } from '@/shared/types.js';
-import { AppError } from '@/shared/utils.js';
+import { AppError, normalizeWorkspaceOwner } from '@/shared/utils.js';
 
 /** Woodpecker's pipeline as its REST API returns it; only the fields read here. */
 type WoodpeckerPipeline = {
@@ -78,16 +78,6 @@ const defaultSource = (): WorkspaceBuildsSource => ({
 let source: WorkspaceBuildsSource = defaultSource();
 let repoIdCache: { repo: string; id: number } | null = null;
 let listCache: { at: number; pipelines: WoodpeckerPipeline[] } | null = null;
-
-/**
- * The Woodpecker label value for a CloudUI username, normalised exactly as
- * `normalize_workspace_owner` in `~/.local/bin/workspace-owner-lib.sh` does:
- * lower case, runs of anything but `a-z0-9_-` become `-`, leading and
- * trailing dashes dropped.
- */
-export function normalizeWorkspaceOwner(username: string): string {
-  return username.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
-}
 
 /** One line, collapsed spaces, at most 80 characters: what Woodpecker stores as the run's title. */
 export function normalizeBuildTitle(title: string | undefined, job: WorkspaceBuildJob): string {

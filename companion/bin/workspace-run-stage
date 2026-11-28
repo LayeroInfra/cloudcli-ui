@@ -10,6 +10,8 @@
 #   WORKSPACE_STAGE_RESET  1: start the stage from empty data (fixtures only)
 #   WORKSPACE_STAGE_DATA   fixtures (default) | prod-copy: copy of the production
 #                          database without secrets, for migration tests
+#   WORKSPACE_STAGE_SHOTS  comma-separated paths to screenshot (default "/"),
+#                          copied to the VM: ~/.local/state/workspace-stage/shots/<sha>
 #   WORKSPACE_STAGE_E2E    1 (default): run the ci/e2e smoke against the stage
 #                          afterwards (Playwright WebKit, over an SSH forward);
 #                          0: skip. With prod-copy data the smoke is skipped: it
@@ -80,5 +82,19 @@ if [ "$(cat node_modules/.e2e-lock-hash 2>/dev/null)" != "$E2E_LOCK_HASH" ]; the
   echo "$E2E_LOCK_HASH" > node_modules/.e2e-lock-hash
 fi
 npx playwright install webkit
+RESULTS="$ROOT/e2e-results"
+rm -rf "$RESULTS"
+mkdir -p "$RESULTS/shots"
+status=0
 STAGE_URL="http://127.0.0.1:$E2E_PORT" STAGE_PASSWORD="$STAGE_PASSWORD" \
-  E2E_OUTPUT_DIR="$ROOT/e2e-results" npx playwright test
+  STAGE_SHOTS="${WORKSPACE_STAGE_SHOTS:-/}" SHOTS_DIR="$RESULTS/shots" \
+  E2E_OUTPUT_DIR="$RESULTS/playwright" npx playwright test || status=$?
+
+# The agent works on the VM and cannot see this Mac: screenshots, and on a
+# failure Playwright's own screenshots and traces, go to the VM.
+REMOTE_SHOTS="~/.local/state/workspace-stage/shots/$VM_SHA"
+ssh_vm "rm -rf $REMOTE_SHOTS && mkdir -p $REMOTE_SHOTS"
+rsync -a -e "ssh -F $VM_COMMIT_SSH_CONFIG -o BatchMode=yes" "$RESULTS/" "$VM_COMMIT_SSH_HOST:$REMOTE_SHOTS/" ||
+  echo "(could not copy the screenshots to the VM)"
+echo "screenshots on the VM: $REMOTE_SHOTS/shots/ (Playwright failure files: $REMOTE_SHOTS/playwright/)"
+exit "$status"

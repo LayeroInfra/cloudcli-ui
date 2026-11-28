@@ -86,8 +86,18 @@ OS-пользователь `layerodev`, общие проекты, сессии
   и коммит `/srv/Layero/cloud-cli`; `--ref <ветка>` — другая ветка (worktree);
   `--steps lint,typecheck` — только часть шагов (статус в GitHub такой прогон
   не ставит). Кнопка **Run checks** в Builds проверяет текущий коммит копии на VM.
-  Owner берётся только из `WORKSPACE_OWNER` сессии; `--owner` запрещён. Если в
-  сессии нет `WORKSPACE_OWNER` (так бывает), попроси человека нажать Run checks.
+  Owner берётся только из `WORKSPACE_OWNER` сессии; `--owner` запрещён. Сервер
+  кладёт в каждую сессию агента (Claude, Codex) и в терминал `WORKSPACE_OWNER`,
+  `WORKSPACE_USER` и git-личность пользователя (`GIT_AUTHOR_*`,
+  `GIT_COMMITTER_*` из профиля), так что агент запускает прогоны сам, а его
+  коммиты подписаны инициатором. В сессиях OpenCode и в сессиях, начатых до
+  выкатки этого (A1), их нет — тогда Run checks жмёт человек.
+- **Результат прогона:** триггер печатает номер (`run #N`); `--wait` у
+  `workspace-trigger-build`, `-stage`, `-make` или `workspace-run-wait <N>`
+  ждёт конца и печатает сводку шагов и строки падений каждого упавшего шага
+  (ошибки oxlint и tsc, `not ok` и `FAIL` тестов). Код выхода: `0` успех, `1`
+  упал, `3` таймаут, `4` Woodpecker недоступен. Агент запускает его фоном и
+  получает результат по завершении, а не опрашивает.
 - **Что проверяется — коммит, не файлы.** Mac забирает коммит с VM по ключу
   companion в свой клон `~/.cache/layero-workspace/checks/cloud-cli`, рабочую
   копию разработчика не трогает. Незакоммиченное не проверяется (триггер
@@ -109,16 +119,30 @@ OS-пользователь `layerodev`, общие проекты, сессии
   экран статуса Companion `:19100`. Лог: `woodpecker-cli pipeline log show
   buildadmin/cloudcli-checks <N>` с `WOODPECKER_SERVER=http://127.0.0.1:8000`
   и токеном из `~/.local/state/woodpecker/user.token`. Цикл перезапусков не крути.
-- Долго в `pending` — сообщи статус и остановись: раннеры только на Mac,
-  в сеть VM их нет. Mac выключен — прогона нет.
+- **Mac выключен** — прогона нет: раннеры только на Mac. Триггер сначала
+  спрашивает Woodpecker, был ли агент владельца на связи последние 2 минуты, и
+  если нет — отказывает сразу (код `6`, «the Mac of <owner> is offline»);
+  `--queue` ставит прогон в очередь до пробуждения Mac. Долго в `pending` —
+  сообщи статус и остановись.
 - Название прогона: 2–6 слов о том, что проверяешь (`session rename`,
   `builds panel smoke`), на языке задачи; один прогон — одна причина. Без дат,
   номеров, `misc`/`fix`/`wip`, без `test`/`check` в одиночку. «Manual checks»
   ставит кнопка в UI, агент так не называет.
 
-Mac запускает **установленную** копию скриптов (`~/.local/bin/workspace-run-*`):
-после правки `companion/bin` на Mac нужно обновить runtime
-(`companion/bin/install.sh`), иначе прогон идёт по старому скрипту.
+`infra/vm/install.sh` можно запускать и из worktree: файлы берутся из него,
+а сервисы (`cloudui-live`, история для `workspace-promote-release`) остаются на
+общей копии `/srv/Layero/cloud-cli` (`WORKSPACE_WORKING_COPY`).
+
+**Скрипты задач берутся из коммита задачи.** Установлен на Mac только
+загрузчик `~/.local/bin/workspace-run-job`; он распаковывает `companion/bin`
+нужного коммита в `~/.cache/layero-workspace/runner/<sha>` и запускает скрипт
+оттуда: для checks и stage — проверяемый коммит, для deploy — `origin/main`,
+для make — вершину ветки копии на VM. Правка `companion/bin` действует со
+своим коммитом, `install.sh` на Mac для неё не нужен. В логе — строка
+`workspace-run-job: scripts from commit <sha>`; если коммит не достался, идёт
+установленная копия и лог пишет почему (`WORKSPACE_RUNNER=installed` —
+принудительно). Сам загрузчик и Swift-приложение по-прежнему обновляет
+`companion/bin/install.sh`.
 
 ### Стенд
 
@@ -142,6 +166,11 @@ Mac запускает **установленную** копию скрипто�
   <ветка> @ <sha>». Вернуться — `/__stage/off` (ссылка в полосе). Вход на
   стенде хранится под своим ключом и прод-вход не трогает. Стенд остановлен —
   шлюз показывает страницу «Стенд не запущен» со ссылкой назад.
+- **Снимки для агента:** `--shots "/,/session/<id>"` (по умолчанию `/`) — после
+  e2e Mac снимает эти страницы под `stage-admin` в двух размерах (1440×900 и
+  390×844) и кладёт на VM в `~/.local/state/workspace-stage/shots/<sha>/shots/`;
+  там же `playwright/` — скриншоты и трассы упавших тестов. Агент открывает PNG
+  сам (Read), без пересказа человека.
 - **На VM:** `workspace-stage status | down | reset | password`.
 - **Ограничение:** ветка с изменённым `package-lock.json` на стенд не встаёт
   (стенд работает на `node_modules` релиза, как прод) — сначала зависимости.
@@ -239,9 +268,8 @@ WORKSPACE_OWNER=<owner> workspace-trigger-make core image C=builder TAG=v123
 
 ## Открытые вопросы
 
-- В сессиях CloudUI нет `WORKSPACE_OWNER` — агент не может сам запустить прогон
-  (сервер подставляет owner только в `POST /api/workspace/builds`, в окружение
-  сессии Claude и терминала не передаёт). Пока человек называет owner сам.
+- `WORKSPACE_OWNER` в сессиях появится только после выкатки A1; OpenCode его
+  пока не получает. План остальных упоров агента — [`workspace-roadmap.md`](workspace-roadmap.md).
 - `cloudui-live` не подключён к шлюзу — правки клиента CloudUI видны на стенде,
   но не вживую (HMR).
 - Панель Builds знает только `checks|deploy`: прогоны `make` и `stage` показаны

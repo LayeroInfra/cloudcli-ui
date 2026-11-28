@@ -1,0 +1,202 @@
+#!/usr/bin/env python3
+"""Wait for a Workspace run (checks, stage, make, deploy) and print its result.
+
+    workspace-run-wait <number> [--timeout 3600] [--tail 60]
+    workspace-trigger-build --title "…" --wait     # the same, right after starting it
+
+An agent uses it to get a run's outcome without a person relaying it: while the
+run waits and runs it prints state changes; at the end it prints the run's own
+summary (the "==> summary" block of workspace-run-checks) and, for every step
+that failed, the last --tail lines of that step's section. The full log stays in
+Woodpecker (Builds panel, or woodpecker-cli pipeline log show).
+
+Exit codes: 0 success, 1 failed (or killed/declined), 2 usage, 3 timed out,
+4 Woodpecker unreachable. A run still pending after 10 minutes gets a hint: the
+runners are on the owners' Macs, so a pending run usually means that Mac is off.
+"""
+import base64
+import json
+import os
+import re
+import sys
+import time
+import urllib.error
+import urllib.request
+
+SERVER = os.environ.get("WOODPECKER_SERVER", "http://127.0.0.1:8000").rstrip("/")
+REPO = os.environ.get("WORKSPACE_BUILDS_REPO", "buildadmin/cloudcli-checks")
+TOKEN_FILE = os.path.expanduser("~/.local/state/woodpecker/user.token")
+DONE = {"success", "failure", "error", "killed", "declined", "skipped"}
+PENDING_HINT_AFTER = 600
+
+
+def usage(message=""):
+    if message:
+        print(f"workspace-run-wait: {message}", file=sys.stderr)
+    print(__doc__.strip().splitlines()[2], file=sys.stderr)
+    sys.exit(2)
+
+
+def parse_args(argv):
+    number, timeout, tail = None, 3600, 60
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg in ("--timeout", "--tail") and i + 1 < len(argv):
+            try:
+                value = int(argv[i + 1])
+            except ValueError:
+                usage(f"{arg} needs a number")
+            if arg == "--timeout":
+                timeout = value
+            else:
+                tail = value
+            i += 2
+        elif arg.isdigit() and number is None:
+            number = int(arg)
+            i += 1
+        else:
+            usage(f"unexpected argument {arg}")
+    if number is None:
+        usage("no run number")
+    return number, timeout, tail
+
+
+def token():
+    value = os.environ.get("WOODPECKER_TOKEN", "").strip()
+    if value:
+        return value
+    try:
+        with open(TOKEN_FILE, encoding="utf-8") as handle:
+            return handle.read().strip()
+    except OSError:
+        print(f"workspace-run-wait: no Woodpecker token ({TOKEN_FILE})", file=sys.stderr)
+        sys.exit(4)
+
+
+def api(path, auth):
+    request = urllib.request.Request(f"{SERVER}{path}", headers={"Authorization": f"Bearer {auth}"})
+    with urllib.request.urlopen(request, timeout=15) as response:
+        body = response.read()
+    return json.loads(body) if body else None
+
+
+def steps_of(pipeline):
+    return [step for workflow in pipeline.get("workflows") or [] for step in workflow.get("children") or []]
+
+
+def step_log(repo_id, number, step_id, auth):
+    try:
+        lines = api(f"/api/repos/{repo_id}/logs/{number}/{step_id}", auth) or []
+    except urllib.error.HTTPError:
+        return []
+    out = []
+    for line in lines:
+        try:
+            out.append(base64.b64decode(line.get("data") or "").decode("utf-8", "replace").rstrip("\n"))
+        except (ValueError, TypeError):
+            continue
+    return out
+
+
+def sections(lines):
+    """The "==> name" sections workspace-run-* print, in order: {name: [lines]}."""
+    found, current = {}, None
+    for line in lines:
+        if line.startswith("==> "):
+            current = line[4:].strip()
+            found[current] = []
+        elif current is not None:
+            found[current].append(line)
+    return found
+
+
+ANSI = re.compile(r"\x1b\[[0-9;]*m")
+# Where a failed step says what went wrong. Tier 1 are the tools' own failure
+# markers (oxlint, tsc, node:test, vitest, bash -n, git); tier 2, thrown errors,
+# only counts when tier 1 finds nothing — passing vitest files log errors too.
+FAILURE_TIERS = (
+    re.compile(r"^\s*×|error TS\d+|^\s*not ok \d|^\s*FAIL\s|syntax error|^fatal:"),
+    re.compile(r"^\s*(Error|AssertionError|TypeError)\b|\bERR_[A-Z_]+"),
+)
+
+
+def highlights(body, limit):
+    """The failure lines of a step with a little context, at most `limit` lines; the tail when none match."""
+    clean = [ANSI.sub("", line) for line in body]
+    for pattern in FAILURE_TIERS:
+        keep = []
+        for index, line in enumerate(clean):
+            if pattern.search(line):
+                context = 14 if re.search(r"not ok|FAIL\s", line) else 4
+                keep.extend(range(index, min(index + context, len(clean))))
+        if keep:
+            picked = [clean[index] for index in dict.fromkeys(keep)]
+            return picked[:limit], True
+    return clean[-limit:], False
+
+
+def report(pipeline, repo_id, auth, tail):
+    number = pipeline.get("number")
+    variables = pipeline.get("variables") or {}
+    title = variables.get("WORKSPACE_BUILD_TITLE", "")
+    print(f"\nrun #{number} {pipeline.get('status')}: {variables.get('WORKSPACE_JOB', 'checks')} — {title}")
+    for step in steps_of(pipeline):
+        lines = step_log(repo_id, number, step["id"], auth)
+        head = next((line for line in lines if line.startswith("workspace-run-")), "")
+        if head:
+            print(head)
+        parts = sections(lines)
+        summary_key = next((key for key in parts if key.startswith("summary")), None)
+        if summary_key:
+            print(f"==> {summary_key}")
+            print("\n".join(parts[summary_key]).rstrip())
+            failed = [row.split()[0] for row in parts[summary_key] if "FAILED" in row.split()[1:2]]
+            for name in failed:
+                body = parts.get(name, [])
+                shown, matched = highlights(body, tail)
+                what = "failure lines" if matched else "last lines"
+                print(f"\n==> {name}: {what} ({len(shown)} of {len(body)})")
+                print("\n".join(shown))
+        elif step.get("state") != "success":
+            print(f"\n==> step {step.get('name')} {step.get('state')} (last {tail} lines)")
+            print("\n".join(lines[-tail:]))
+
+
+def main():
+    number, timeout, tail = parse_args(sys.argv[1:])
+    auth = token()
+    try:
+        repo_id = api(f"/api/repos/lookup/{REPO}", auth)["id"]
+    except (urllib.error.URLError, KeyError, TypeError) as error:
+        print(f"workspace-run-wait: Woodpecker at {SERVER} unreachable: {error}", file=sys.stderr)
+        sys.exit(4)
+    started, last_status, hinted = time.time(), None, False
+    while True:
+        try:
+            pipeline = api(f"/api/repos/{repo_id}/pipelines/{number}", auth)
+        except urllib.error.HTTPError as error:
+            print(f"workspace-run-wait: run #{number}: HTTP {error.code}", file=sys.stderr)
+            sys.exit(4 if error.code != 404 else 2)
+        except urllib.error.URLError as error:
+            pipeline = None
+            print(f"workspace-run-wait: Woodpecker unreachable, retrying: {error}", file=sys.stderr)
+        if pipeline:
+            status = pipeline.get("status")
+            if status != last_status:
+                print(f"{time.strftime('%H:%M:%S')} run #{number}: {status}", flush=True)
+                last_status = status
+            if status in DONE:
+                report(pipeline, repo_id, auth, tail)
+                sys.exit(0 if status == "success" else 1)
+            if status == "pending" and not hinted and time.time() - started > PENDING_HINT_AFTER:
+                print("still pending after 10 min: the owner's Mac (its Woodpecker agent) is probably off or asleep", flush=True)
+                hinted = True
+        if time.time() - started > timeout:
+            print(f"workspace-run-wait: run #{number} not finished after {timeout}s (status {last_status})", file=sys.stderr)
+            sys.exit(3)
+        time.sleep(10)
+
+
+if __name__ == "__main__":
+    main()

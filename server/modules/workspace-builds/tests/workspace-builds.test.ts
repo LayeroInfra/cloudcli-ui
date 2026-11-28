@@ -5,7 +5,8 @@ import test from 'node:test';
 
 import express from 'express';
 
-import { normalizeBuildTitle, normalizeWorkspaceOwner, workspaceBuildsService } from '@/modules/workspace-builds/services/workspace-builds.service.js';
+import { normalizeBuildTitle, workspaceBuildsService } from '@/modules/workspace-builds/services/workspace-builds.service.js';
+import { normalizeWorkspaceOwner } from '@/shared/utils.js';
 import { createWorkspaceBuildsRouter } from '@/modules/workspace-builds/workspace-builds.routes.js';
 
 const b64 = (text: string) => Buffer.from(`${text}\n`).toString('base64');

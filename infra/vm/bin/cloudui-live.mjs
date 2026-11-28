@@ -1,12 +1,12 @@
 // Vite HMR for the CloudUI working copy, served on a unix socket for the
 // gateway; the API still goes to the release server on :3002.
-// Rendered by infra/vm/install.sh (@REPO@ = the working copy).
-import {createServer as createVite} from "@REPO@/node_modules/vite/dist/node/index.js";
+// Rendered by infra/vm/install.sh (@WORKING_COPY@ = the shared working copy).
+import {createServer as createVite} from "@WORKING_COPY@/node_modules/vite/dist/node/index.js";
 import {createServer} from "node:http";
 import {rmSync} from "node:fs";
 import {homedir} from "node:os";
 
-const root = "@REPO@";
+const root = "@WORKING_COPY@";
 const socket = homedir() + "/.local/state/cloudcli-live/ui.sock";
 rmSync(socket, {force: true});
 const http = createServer();

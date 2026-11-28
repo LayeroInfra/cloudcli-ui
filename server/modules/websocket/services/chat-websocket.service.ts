@@ -13,6 +13,7 @@ import {
 } from '@/modules/providers/index.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
+import { resolveWorkspaceIdentityEnv } from '@/modules/websocket/services/workspace-identity.service.js';
 import {
   getGlobalImageAssetsDir,
   isImageAttachmentDescriptor,
@@ -302,6 +303,8 @@ async function dispatchRun(
     sessionId,
     cwd: clientOptions.cwd ?? session.project_path ?? undefined,
     projectPath: session.project_path ?? clientOptions.projectPath,
+    // Who started the run (WORKSPACE_OWNER, git identity): set by the server, never by the client.
+    workspaceEnv: resolveWorkspaceIdentityEnv(userId),
   };
 
   let failure: string | null = null;
