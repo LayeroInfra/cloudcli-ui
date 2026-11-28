@@ -7,6 +7,8 @@
 #   workspace-trigger-stage --reset               # start from fresh fixtures
 #   workspace-trigger-stage --reset --data prod-copy   # from a secret-free copy of production
 #   workspace-trigger-stage --wait                # wait for the build, stage and e2e; print the result
+#   workspace-trigger-stage --shots "/,/session/x"  # screenshots of these pages (default "/"), for the agent:
+#                                                 # ~/.local/state/workspace-stage/shots/<sha>/shots/*.png
 #
 # Then open https://<gateway>:9443/__stage/on in Companion; /__stage/off returns.
 # Owner comes only from WORKSPACE_OWNER, like every workspace-trigger-*.
@@ -17,6 +19,7 @@ REF=""
 RESET=0
 DATA=fixtures
 TITLE=""
+SHOTS="/"
 while [ $# -gt 0 ]; do
   case "$1" in
     --ref) REF="${2:-}"; shift 2 ;;
@@ -24,14 +27,17 @@ while [ $# -gt 0 ]; do
     --data) DATA="${2:-}"; shift 2 ;;
     --title) TITLE="${2:-}"; shift 2 ;;
     --wait) ARGS+=(--wait); shift ;;
+    --shots) SHOTS="${2:-}"; shift 2 ;;
     --owner) echo "workspace-trigger-stage: --owner запрещён; owner только из WORKSPACE_OWNER" >&2; exit 2 ;;
     *) echo "workspace-trigger-stage: unexpected argument $1" >&2; exit 2 ;;
   esac
 done
 case "$DATA" in fixtures|prod-copy) ;; *) echo "--data must be fixtures or prod-copy" >&2; exit 2 ;; esac
+[[ "$SHOTS" =~ ^/[A-Za-z0-9/_.,?=\&%-]*$ ]] || { echo "--shots: comma-separated paths starting with /" >&2; exit 2; }
 if [ -n "$REF" ]; then ARGS+=(--ref "$REF"); fi
 [ -n "$TITLE" ] || TITLE="stage ${REF:-$(git -C /srv/Layero/cloud-cli symbolic-ref --quiet --short HEAD || echo HEAD)}$([ "$RESET" = 1 ] && echo " (reset, $DATA)")"
 
 exec "$HOME/.local/bin/workspace-trigger-build" --job stage --title "$TITLE" "${ARGS[@]}" \
   --var "WORKSPACE_STAGE_RESET=$RESET" \
-  --var "WORKSPACE_STAGE_DATA=$DATA"
+  --var "WORKSPACE_STAGE_DATA=$DATA" \
+  --var "WORKSPACE_STAGE_SHOTS=$SHOTS"
