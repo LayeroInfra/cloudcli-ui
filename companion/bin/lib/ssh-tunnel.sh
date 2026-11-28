@@ -76,6 +76,17 @@ ensure_companion_ssh() {
     return 1
   fi
 
+  # Operator-provided host pins bootstrap fresh Macs. Preserve an existing
+  # local pin even if a newly installed runtime includes another key.
+  local bundled_hosts
+  bundled_hosts="$(dirname "$src_key")/known_hosts"
+  if [ -s "$bundled_hosts" ] &&
+    ! ssh-keygen -F "$workspace_host" -f "$dest/known_hosts" >/dev/null
+  then
+    (ssh-keygen -F "$workspace_host" -f "$bundled_hosts" || true) |
+      awk '$1 !~ /^#/' >>"$dest/known_hosts"
+  fi
+
   # Carry an existing IP-based pin forward when migrating from an older install.
   if [ "$workspace_host" != "$ip" ] &&
     ! ssh-keygen -F "$workspace_host" -f "$dest/known_hosts" >/dev/null

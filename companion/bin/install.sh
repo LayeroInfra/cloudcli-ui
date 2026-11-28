@@ -114,6 +114,9 @@ if [ "${WORKSPACE_KEEP_AGENT:-0}" != 1 ]; then
   launchctl bootout "gui/$(id -u)/ai.layero.cloudcli-build-agent" 2>/dev/null || true
 fi
 
+# An old Workspace LaunchAgent may be occupying 8080 with the Vite target.
+python3 "$SHARE/bin/lib/migrate-preview-forward.py" "$SHARE/secrets/ssh/users" || true
+
 echo "Installed Layero Workspace"
 echo "  app:     $APP_DST"
 echo "  quit:    Cmd+Q / Quit — останавливает туннель, агент и companion"

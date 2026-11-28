@@ -213,8 +213,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     let sourceBinary = source.appendingPathComponent("app/Companion.app/Contents/MacOS/companion")
     let installedBinary = shareDir.appendingPathComponent("app/Companion.app/Contents/MacOS/companion")
+    let installedInstaller = shareDir.appendingPathComponent("bin/install.sh")
     guard !fm.isExecutableFile(atPath: startScript.path)
       || !fm.contentsEqual(atPath: sourceBinary.path, andPath: installedBinary.path)
+      || !fm.contentsEqual(atPath: installer.path, andPath: installedInstaller.path)
     else { return }
 
     let proc = Process()
