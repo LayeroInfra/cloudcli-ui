@@ -24,6 +24,9 @@ const slug = (value) => value.replace(/^\/+|\/+$/g, '').replace(/[^a-zA-Z0-9._-]
 test('screenshots of the stage pages for the agent', async ({ page }) => {
   expect(PASSWORD, 'STAGE_PASSWORD').not.toBe('');
   fs.mkdirSync(SHOTS_DIR, { recursive: true });
+  // What Companion sees after /__stage/on: the stage cookie, so the client
+  // shows its stage banner and keeps the stage sign-in apart, as for a person.
+  await page.context().addCookies([{ name: 'workspace_stage', value: '1', url: test.info().project.use.baseURL || 'http://127.0.0.1:13102' }]);
   await page.goto('/');
   await page.locator('#username').fill('stage-admin');
   await page.locator('#password').fill(PASSWORD);

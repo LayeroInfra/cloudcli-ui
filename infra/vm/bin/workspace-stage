@@ -95,6 +95,14 @@ cmd_up() {
   seeded=1
   if [ ! -d "$STAGE_HOME/.cloudcli" ]; then seeded=0; fi
   mkdir -p "$STAGE_HOME/projects"
+  # The stage's Claude is the fake CLI; a placeholder API key in its settings
+  # makes the UI show Claude as connected, as in production, instead of a red
+  # "Not signed in". It is never sent anywhere: the fake ignores it, and the
+  # usage meter reads only a /login session, which the stage does not have.
+  if [ ! -f "$STAGE_HOME/.claude/settings.json" ]; then
+    mkdir -p "$STAGE_HOME/.claude"
+    printf '{\n  "env": { "ANTHROPIC_API_KEY": "fake-stage-key-not-a-real-key" }\n}\n' > "$STAGE_HOME/.claude/settings.json"
+  fi
 
   # The unit reads branch and commit from here: /health shows them, the banner prints them.
   printf 'WORKSPACE_STAGE_REF=%s\nWORKSPACE_STAGE_SHA=%s\n' "$ref" "$sha" > "$ENV_FILE"
