@@ -45,7 +45,7 @@ import {
   getReportedClaudeContextWindow,
   rememberClaudeContextWindow
 } from '@/modules/providers/services/provider-token-usage.service.js';
-import { createCompleteMessage, createNormalizedMessage, errorMessage } from '@/shared/utils.js';
+import { createCompleteMessage, createNormalizedMessage, errorMessage, readStringRecord } from '@/shared/utils.js';
 import type {
   AnyRecord,
   BackgroundTaskSummary,
@@ -387,6 +387,9 @@ function mapCliOptionsToSDK(options: AnyRecord = {}) {
   sdkOptions.env = buildClaudeSdkEnv();
   // A Bash tool's `$BROWSER`/`xdg-open` prints the URL instead of failing.
   Object.assign(sdkOptions.env, workspaceBrowserEnv(sdkOptions.env));
+  // Who started the run (WORKSPACE_OWNER, git identity): the agent's
+  // workspace-trigger-* and commits act as that user.
+  Object.assign(sdkOptions.env, readStringRecord(options.workspaceEnv) ?? {});
 
   // Resolve the executable eagerly on Windows because the SDK uses raw child_process.spawn,
   // which does not reliably follow npm's shell wrappers like cross-spawn does.

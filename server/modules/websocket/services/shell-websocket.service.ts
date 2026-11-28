@@ -7,7 +7,9 @@ import { WebSocket, type RawData } from 'ws';
 
 import { resolveCodexCommandLine } from '@/modules/providers/index.js';
 import { parseIncomingJsonObject, stripAnsiSequences } from '@/shared/utils.js';
+import type { AuthenticatedWebSocketRequest } from '@/shared/types.js';
 import { workspaceBrowserEnv } from '@/shared/workspace-browser.js';
+import { resolveWorkspaceIdentityEnv } from '@/modules/websocket/services/workspace-identity.service.js';
 
 type ShellIncomingMessage = {
   type?: string;
@@ -542,9 +544,12 @@ function prioritizeUserNpmGlobalBin(env: NodeJS.ProcessEnv): { key: string; valu
  */
 export function handleShellConnection(
   ws: WebSocket,
-  dependencies: ShellWebSocketDependencies
+  dependencies: ShellWebSocketDependencies,
+  request?: AuthenticatedWebSocketRequest,
 ): void {
   console.log('[INFO] Shell websocket connected');
+  // The terminal runs as the signed-in user: WORKSPACE_OWNER and git identity.
+  const identityEnv = resolveWorkspaceIdentityEnv(request?.user?.id ?? request?.user?.userId);
 
   let shellProcess: IPty | null = null;
   let ptySessionKey: string | null = null;
@@ -670,6 +675,7 @@ export function handleShellConnection(
             ...ptyEnv,
             // `$BROWSER`/`xdg-open` print OPEN_URL for the client to open.
             ...workspaceBrowserEnv(ptyEnv),
+            ...identityEnv,
             TERM: 'xterm-256color',
             COLORTERM: 'truecolor',
             FORCE_COLOR: '3',

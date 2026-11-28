@@ -26,6 +26,7 @@ import type { AnyRecord, ProviderRuntimeContext, ProviderRuntimeWriter } from '@
 // Not re-exported through the `@/shared/index.js` barrel yet (same seam the
 // Claude side-question provider already uses), so imported directly.
 import type { SideQuestionOutcome, SideQuestionRequest, SideQuestionSink } from '@/shared/types.js';
+import { readStringRecord } from '@/shared/utils.js';
 
 import { codexAppServer } from './codex-app-server.client.js';
 import { createCodexProcessEnv, resolveCodexCli } from './codex-cli.js';
@@ -277,7 +278,8 @@ async function queryCodex(
     effort,
     images,
     files,
-    permissionMode = 'default'
+    permissionMode = 'default',
+    workspaceEnv,
   } = options;
 
   // Callers pass the stable app session id; the SDK resumes threads with the
@@ -328,9 +330,16 @@ async function queryCodex(
     // The SDK finds the bundled CLI by itself; the user's own Codex is handed
     // over with the PATH helpers the SDK would otherwise add for the bundle.
     const cli = resolveCodexCli();
-    codex = cli?.source === 'user'
-      ? new Codex({ codexPathOverride: cli.executablePath, env: createCodexProcessEnv(cli) })
-      : new Codex();
+    // Who started the run (WORKSPACE_OWNER, git identity), merged over the
+    // server's own environment; the SDK still adds its PATH helpers on top.
+    const identityEnv = readStringRecord(workspaceEnv) ?? {};
+    if (cli?.source === 'user') {
+      codex = new Codex({ codexPathOverride: cli.executablePath, env: { ...createCodexProcessEnv(cli), ...identityEnv } });
+    } else if (Object.keys(identityEnv).length > 0) {
+      codex = new Codex({ env: { ...readStringRecord({ ...process.env }), ...identityEnv } });
+    } else {
+      codex = new Codex();
+    }
 
     const threadOptions: ThreadOptions = {
       workingDirectory,

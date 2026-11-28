@@ -44,6 +44,52 @@ import type {
 export const IS_PLATFORM = process.env.VITE_IS_PLATFORM === 'true';
 
 // ---------------------------
+//----------------- WORKSPACE IDENTITY UTILITIES ------------
+/**
+ * The Woodpecker `owner` label for a Workspace username, normalised exactly as
+ * `normalize_workspace_owner` in `~/.local/bin/workspace-owner-lib.sh` does:
+ * lower case, runs of anything but `a-z0-9_-` become `-`, leading and
+ * trailing dashes dropped. Workspace Builds labels runs with it, and every
+ * agent session and terminal gets it as `WORKSPACE_OWNER`, so the two always
+ * name the same Mac.
+ */
+export function normalizeWorkspaceOwner(username: string): string {
+  return username.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+/**
+ * Environment that tells an agent run or a terminal who started it:
+ *
+ * - `WORKSPACE_USER` — the Workspace username;
+ * - `WORKSPACE_OWNER` — its build owner (see `normalizeWorkspaceOwner`), which
+ *   `workspace-trigger-*` read to run checks and stages on that user's Mac;
+ * - `GIT_AUTHOR_*` and `GIT_COMMITTER_*` — the user's git name and email from
+ *   their profile, so commits made in the shared checkout are theirs. Left out
+ *   while the profile has none, and the checkout's own git config applies.
+ *
+ * Merge it over the child's environment; it never carries secrets. An empty
+ * username gives an empty record.
+ */
+export function buildWorkspaceIdentityEnv(identity: {
+  username: string;
+  gitName?: string | null;
+  gitEmail?: string | null;
+}): Record<string, string> {
+  const owner = normalizeWorkspaceOwner(identity.username || '');
+  if (!owner) return {};
+  const env: Record<string, string> = { WORKSPACE_USER: identity.username, WORKSPACE_OWNER: owner };
+  const gitName = identity.gitName?.trim();
+  const gitEmail = identity.gitEmail?.trim();
+  if (gitName && gitEmail) {
+    env.GIT_AUTHOR_NAME = gitName;
+    env.GIT_AUTHOR_EMAIL = gitEmail;
+    env.GIT_COMMITTER_NAME = gitName;
+    env.GIT_COMMITTER_EMAIL = gitEmail;
+  }
+  return env;
+}
+
+// ---------------------------
 //----------------- SECRET COMPARISON UTILITIES ------------
 /**
  * Compares a caller-supplied credential against the expected secret in
