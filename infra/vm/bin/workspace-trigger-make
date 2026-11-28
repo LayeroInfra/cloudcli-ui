@@ -6,6 +6,7 @@
 #   workspace-trigger-make core check
 #   workspace-trigger-make core ship DRY=1
 #   workspace-trigger-make core check --ref fix/T-123   # a branch, e.g. of a worktree
+#   workspace-trigger-make core check --wait            # wait and print the result
 #
 # The Mac takes the current commit of /srv/Layero/<repo> straight from this VM
 # (companion SSH key), so it needs no push first; uncommitted edits stay here.
@@ -22,10 +23,12 @@ shift 2
 VARS=()
 TITLE=""
 REF=""
+WAIT=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --title) TITLE="${2:-}"; shift 2 ;;
     --ref) REF="${2:-}"; shift 2 ;;
+    --wait) WAIT=(--wait); shift ;;
     --owner) echo "workspace-trigger-make: --owner запрещён; owner только из WORKSPACE_OWNER" >&2; exit 2 ;;
     *=*) VARS+=("$1"); shift ;;
     *) echo "workspace-trigger-make: unexpected argument $1" >&2; exit 2 ;;
@@ -50,7 +53,7 @@ fi
 
 VARS_STR="${VARS[*]+${VARS[*]}}"
 [ -n "$TITLE" ] || TITLE="make $TARGET${VARS_STR:+ $VARS_STR} ($REPO ${REF})"
-exec "$HOME/.local/bin/workspace-trigger-build" --job make --title "$TITLE" \
+exec "$HOME/.local/bin/workspace-trigger-build" --job make --title "$TITLE" ${WAIT[@]+"${WAIT[@]}"} \
   --var "WORKSPACE_MAKE_REPO=$REPO" \
   --var "WORKSPACE_MAKE_TARGET=$TARGET" \
   --var "WORKSPACE_MAKE_VARS=$VARS_STR" \
