@@ -39,14 +39,15 @@ export function WorkspaceStageBanner() {
     ? `${stage.ref}${stage.sha ? ` @ ${stage.sha.slice(0, 8)}` : ''}`
     : t('workspaceStage.unknownBuild', { defaultValue: 'branch build' });
 
+  // One line at any width: a long branch name is cut short, the way back stays whole.
   return (
     <div
       role="status"
       data-testid="workspace-stage-banner"
-      className="pointer-events-auto fixed bottom-2 left-1/2 z-[1000] flex -translate-x-1/2 items-center gap-3 rounded-full bg-amber-500 px-3 py-1 text-xs font-medium text-black shadow-lg"
+      className="pointer-events-auto fixed bottom-2 left-1/2 z-[1000] flex max-w-[calc(100vw-1rem)] -translate-x-1/2 items-center gap-3 whitespace-nowrap rounded-full bg-amber-500 px-3 py-1 text-xs font-medium text-black shadow-lg"
     >
-      <span>{t('workspaceStage.label', { defaultValue: 'Stage' })}: {label}</span>
-      <a href="/__stage/off" className="underline underline-offset-2">
+      <span className="min-w-0 truncate" title={label}>{t('workspaceStage.label', { defaultValue: 'Stage' })}: {label}</span>
+      <a href="/__stage/off" className="shrink-0 underline underline-offset-2">
         {t('workspaceStage.exit', { defaultValue: 'Back to Workspace' })}
       </a>
     </div>
