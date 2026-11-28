@@ -30,6 +30,7 @@ import {
 } from './modules/auth/index.js';
 import { taskmasterRoutes } from './modules/taskmaster/index.js';
 import { workspaceBuildsRoutes } from './modules/workspace-builds/index.js';
+import { createWorkspaceActivityRouter } from './modules/workspace-activity/index.js';
 import { agentMemoryRoutes } from './modules/agent-memory/index.js';
 import { commandsRoutes } from './modules/commands/index.js';
 import { settingsRoutes } from './modules/settings/index.js';
@@ -224,6 +225,10 @@ app.get('/health', (req, res) => {
         ...(WORKSPACE_STAGE ? { stage: WORKSPACE_STAGE } : {}),
     });
 });
+
+// Whether an agent is mid-turn, for workspace-promote-release before it
+// restarts the server; direct local requests only (not through the gateway).
+app.use('/internal/workspace', createWorkspaceActivityRouter());
 
 // Optional API key validation (if configured)
 app.use('/api', validateApiKey);

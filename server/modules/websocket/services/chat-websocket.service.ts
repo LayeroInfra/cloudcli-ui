@@ -303,8 +303,10 @@ async function dispatchRun(
     sessionId,
     cwd: clientOptions.cwd ?? session.project_path ?? undefined,
     projectPath: session.project_path ?? clientOptions.projectPath,
-    // Who started the run (WORKSPACE_OWNER, git identity): set by the server, never by the client.
-    workspaceEnv: resolveWorkspaceIdentityEnv(userId),
+    // Who started the run (WORKSPACE_OWNER, git identity) and in which session
+    // (a deploy the agent starts must not wait for the agent's own turn).
+    // Set by the server, never by the client.
+    workspaceEnv: { ...resolveWorkspaceIdentityEnv(userId), WORKSPACE_SESSION_ID: sessionId },
   };
 
   let failure: string | null = null;

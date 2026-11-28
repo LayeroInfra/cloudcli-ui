@@ -43,6 +43,15 @@ type PtySessionEntry = {
 };
 
 const ptySessionsMap = new Map<string, PtySessionEntry>();
+
+/**
+ * Used by Workspace Activity (through the websocket barrel): how many terminal
+ * processes this server keeps — attached or waiting for their tab to come back.
+ * A restart of the server ends every one of them, so a deploy reports it.
+ */
+export function countOpenTerminals(): number {
+  return ptySessionsMap.size;
+}
 const PTY_SESSION_TIMEOUT = 30 * 60 * 1000;
 const SHELL_URL_PARSE_BUFFER_LIMIT = 32768;
 const TRAILING_URL_PUNCTUATION_REGEX = /[)\]}>.,;:!?]+$/;
