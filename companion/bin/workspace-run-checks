@@ -9,6 +9,8 @@
 #                           lib/workspace-checks-steps.sh; "quick" picks a quick run's
 #                           steps for the changes since WORKSPACE_CHECKS_BASE
 #   WORKSPACE_CHECKS_BASE   commit a quick run compares with (the branch's merge-base with main)
+#   WORKSPACE_CHECKS_THEN_STAGE  1: after a green full run, stage the same commit in this job
+#                           (workspace-run-stage: build, stage on the VM, e2e, screenshots)
 #
 # The Builds button sends neither REF nor SHA: then the VM checkout's current
 # branch and commit are checked. The commit comes straight from the VM over the
@@ -82,6 +84,19 @@ print_check_summary "$(git rev-parse --short HEAD) ($VM_REF)"
 
 if [ "$CHECK_FAILED" -eq 0 ]; then
   status success "${#CHECK_RESULTS[@]} steps passed"
+  if [ "${WORKSPACE_CHECKS_THEN_STAGE:-0}" = 1 ]; then
+    if [ "$PARTIAL" = 1 ]; then
+      echo "then-stage skipped: only a full green run puts a branch on the stage"
+      exit 0
+    fi
+    # The stage job takes its own lock and clone; release ours first.
+    rmdir "$VM_COMMIT_LOCK" 2>/dev/null || true
+    trap - EXIT
+    echo ""
+    echo "==> then-stage: $VM_REF @ ${VM_SHA:0:12}"
+    export WORKSPACE_STAGE_REF="$VM_REF" WORKSPACE_STAGE_SHA="$VM_SHA"
+    exec "$(dirname "$0")/workspace-run-stage"
+  fi
   exit 0
 fi
 status failure "$CHECK_FAILED of ${#CHECK_RESULTS[@]} steps failed"

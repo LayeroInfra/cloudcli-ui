@@ -9,6 +9,8 @@
 #   workspace-trigger-build --title "…" --wait                  # wait and print the result
 #   workspace-trigger-build --title "…" --quick --wait          # quick run: lint, typecheck and the
 #                                                               # tests of what changed since main (A5)
+#   workspace-trigger-build --title "…" --then-stage --wait     # full run; if green, stage this commit
+#                                                               # too (e2e, screenshots) — "check and show"
 #
 # Before starting, it checks that WORKSPACE_OWNER's Mac (its Woodpecker agent)
 # was in touch in the last 2 minutes; if not, it says so and exits 6 instead of
@@ -44,6 +46,7 @@ STEPS=""
 WAIT=0
 QUEUE=0
 QUICK=0
+THEN_STAGE=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --title)
@@ -72,6 +75,10 @@ while [ $# -gt 0 ]; do
       ;;
     --quick)
       QUICK=1
+      shift
+      ;;
+    --then-stage)
+      THEN_STAGE=1
       shift
       ;;
     --owner)
@@ -143,6 +150,10 @@ if [ "$JOB" = checks ] || [ "$JOB" = stage ]; then
     fi
   fi
   if [ -n "$STEPS" ]; then ARGS+=(--var "WORKSPACE_CHECKS_STEPS=${STEPS}"); fi
+  if [ "$THEN_STAGE" = 1 ]; then
+    [ "$JOB" = checks ] && [ -z "$STEPS" ] || { echo "workspace-trigger-build: --then-stage needs a full checks run" >&2; exit 2; }
+    ARGS+=(--var "WORKSPACE_CHECKS_THEN_STAGE=1" --var "WORKSPACE_STAGE_SHOTS=${WORKSPACE_STAGE_SHOTS:-/}")
+  fi
   echo "$JOB: $REF @ ${SHA:0:12}" >&2
 elif [ -n "$REF" ] || [ -n "$STEPS" ] || [ "$QUICK" = 1 ]; then
   echo "workspace-trigger-build: --ref/--steps/--quick are for checks and stage only" >&2

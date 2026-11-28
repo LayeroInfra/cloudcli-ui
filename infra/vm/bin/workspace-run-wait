@@ -146,6 +146,10 @@ def report(pipeline, repo_id, auth, tail):
         head = next((line for line in lines if line.startswith("workspace-run-")), "")
         if head:
             print(head)
+        # Where the stage is and where its screenshots went: what the agent opens next.
+        for line in lines:
+            if line.startswith(("workspace-stage: up:", "screenshots on the VM:", "workspace-run-job: scripts from")):
+                print(line)
         parts = sections(lines)
         summary_key = next((key for key in parts if key.startswith("summary")), None)
         if summary_key:
@@ -158,9 +162,19 @@ def report(pipeline, repo_id, auth, tail):
                 what = "failure lines" if matched else "last lines"
                 print(f"\n==> {name}: {what} ({len(shown)} of {len(body)})")
                 print("\n".join(shown))
+            # Checks green but the step failed: what came after the summary
+            # (--then-stage: the build, the stage, the e2e) is what broke.
+            keys = list(parts)
+            after = keys[keys.index(summary_key) + 1:]
+            if not failed and step.get("state") != "success" and after:
+                body = [line for key in after for line in [f"==> {key}"] + parts[key]]
+                shown, matched = highlights(body, tail)
+                print(f"\n==> after the checks ({', '.join(after)}): {'failure lines' if matched else 'last lines'}")
+                print("\n".join(shown))
         elif step.get("state") != "success":
-            print(f"\n==> step {step.get('name')} {step.get('state')} (last {tail} lines)")
-            print("\n".join(lines[-tail:]))
+            shown, matched = highlights(lines, tail)
+            print(f"\n==> step {step.get('name')} {step.get('state')}: {'failure lines' if matched else 'last lines'}")
+            print("\n".join(shown))
 
 
 def main():
