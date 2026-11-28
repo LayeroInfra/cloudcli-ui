@@ -1,0 +1,44 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(workspace-trigger-build:*)",
+      "Bash(workspace-trigger-stage:*)",
+      "Bash(workspace-trigger-make:*)",
+      "Bash(workspace-run-wait:*)",
+      "Bash(workspace-pipeline-ls:*)",
+      "Bash(workspace-stage status)",
+      "Bash(workspace-stage password)",
+      "Bash(infra/vm/install.sh --check)",
+      "Bash(infra/vm/install.sh)",
+      "Bash(bash -n:*)",
+      "Bash(node --test ci/fake-claude/fake-claude.test.mjs)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git fetch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git worktree:*)",
+      "Bash(git switch:*)",
+      "Bash(git push origin feat/:*)",
+      "Bash(git push origin fix/:*)",
+      "Bash(git push -u origin feat/:*)",
+      "Bash(git push -u origin fix/:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr edit:*)"
+    ],
+    "ask": [
+      "Bash(gh pr merge:*)",
+      "Bash(workspace-trigger-deploy:*)",
+      "Bash(infra/vm/install.sh --restart:*)",
+      "Bash(systemctl --user restart:*)",
+      "Bash(systemctl --user stop:*)",
+      "Bash(git push origin main:*)",
+      "Bash(git push --force:*)"
+    ]
+  }
+}
