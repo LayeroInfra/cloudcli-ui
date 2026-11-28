@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
@@ -42,7 +42,9 @@ async function writeFakeNative(filePath: string, version: string | null): Promis
 }
 
 async function withTempDir(run: (dir: string) => Promise<void>): Promise<void> {
-  const dir = await mkdtemp(path.join(os.tmpdir(), 'codex-cli-test-'));
+  // realpath: on macOS os.tmpdir() is under /var, a link to /private/var, and the
+  // resolver reports the real path of what it finds.
+  const dir = await realpath(await mkdtemp(path.join(os.tmpdir(), 'codex-cli-test-')));
   try {
     await run(dir);
   } finally {

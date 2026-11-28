@@ -7,6 +7,17 @@ import type { AgentMemoryMap } from '@/shared/types';
 
 const mocks = vi.hoisted(() => ({ map: vi.fn(), instructions: vi.fn(), saveInstructions: vi.fn() }));
 vi.mock('@/shared/api', () => ({ api: { agentMemory: mocks } }));
+// No i18next instance in tests: render each string from its English default,
+// with {{placeholders}} filled, as the app does before translations load.
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options: Record<string, unknown> = {}) => (
+      typeof options.defaultValue === 'string'
+        ? options.defaultValue.replace(/\{\{(\w+)\}\}/g, (_match, name: string) => String(options[name] ?? ''))
+        : key
+    ),
+  }),
+}));
 
 const { default: AgentMemoryPanel } = await import('@/modules/project-workspace/AgentMemoryPanel');
 

@@ -31,7 +31,9 @@ async function runTurn(prompt, extra = {}) {
 
 test('a turn on the fake CLI: init, reply, result and a transcript', { timeout: 30_000 }, async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'fake-claude-home-'));
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'fake-claude-cwd-'));
+  // realpath: on macOS os.tmpdir() is under /var, a link to /private/var, and the
+  // CLI (like Claude Code) names the transcript folder after its real cwd.
+  const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'fake-claude-cwd-')));
   try {
     const first = await runTurn('hello workspace', { home, cwd });
     const init = first.find((m) => m.type === 'system' && m.subtype === 'init');

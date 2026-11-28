@@ -160,10 +160,15 @@ function summarizeGitOutput(gitOutput: string): string | null {
  * GIT_ASKPASS, SSH keys and agent), but must fail instead of prompting on the
  * server's terminal: GIT_TERMINAL_PROMPT=0 for git, and on POSIX no
  * controlling terminal at all for git and the ssh it starts.
+ *
+ * Git's messages are pinned to English (LC_ALL/LANGUAGE=C): the failure
+ * patterns above and the "Cloning into …" filter that keeps server paths out
+ * of what the client sees read git's English text. Under a localized server
+ * (a Mac set to Russian prints "Клонирование в «…»") both would miss.
  */
 export function getPluginGitSpawnOptions(): Pick<SpawnOptions, 'env' | 'detached'> {
   return {
-    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', LANGUAGE: 'C' },
     detached: RUN_GIT_WITHOUT_TERMINAL,
   };
 }
