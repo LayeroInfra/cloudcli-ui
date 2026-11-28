@@ -4,19 +4,42 @@
 # workspace-run-deploy on a Mac after it rsynced a build into
 # ~/.local/share/cloudcli-releases/workspace-ui.incoming-<sha>.
 #
-#   workspace-promote-release <sha>
+#   workspace-promote-release <sha> [--quiet-wait <seconds>] [--force-busy] [--ignore-session <id>]
 #
 # One deploy at a time (flock), never an older commit over a newer one, the
 # installed node_modules must match the build's package-lock, and a release
 # that fails its smoke test is rolled back to the previous one.
 #
+# Restarting the server cuts off every agent turn that is running and closes
+# every terminal. So right before the switch it asks the live server
+# (/internal/workspace/activity) and waits until no agent is mid-turn — up to
+# --quiet-wait seconds (default 900), asking again every 10 s. Terminals are
+# only reported. If the agents stay busy, or the live release cannot say
+# (a release from before this check), it refuses with exit 7 and changes
+# nothing; --force-busy restarts anyway, which is the person's call.
+# --ignore-session leaves out the turn of the agent that asked for the deploy:
+# it would otherwise wait for itself; that turn ends with the restart.
+#
 # Exit codes: 0 shipped (or already live), 2 usage, 3 refused (older commit,
-# dependency change, bad stage), 4 smoke failed and rolled back, 5 lock busy.
+# dependency change, bad stage), 4 smoke failed and rolled back, 5 lock busy,
+# 7 refused: agents still mid-turn or activity unknown.
 set -euo pipefail
 
-SHA="${1:-}"
-if ! [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
-  echo "usage: workspace-promote-release <40-hex commit sha>" >&2
+SHA=""
+QUIET_WAIT="${WORKSPACE_DEPLOY_QUIET_WAIT:-900}"
+FORCE_BUSY=0
+IGNORE_SESSION=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --ignore-session) IGNORE_SESSION="${2:-}"; shift 2 ;;
+    --quiet-wait) QUIET_WAIT="${2:-}"; shift 2 ;;
+    --force-busy) FORCE_BUSY=1; shift ;;
+    *) if [ -z "$SHA" ]; then SHA="$1"; shift; else echo "unexpected argument $1" >&2; exit 2; fi ;;
+  esac
+done
+if ! [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || ! [[ "$QUIET_WAIT" =~ ^[0-9]+$ ]] ||
+  ! [[ "$IGNORE_SESSION" =~ ^[A-Za-z0-9_.:-]*$ ]]; then
+  echo "usage: workspace-promote-release <40-hex commit sha> [--quiet-wait <seconds>] [--force-busy]" >&2
   exit 2
 fi
 
@@ -118,6 +141,47 @@ smoke() {
   done
   return 1
 }
+
+# activity: one line "<quiet|busy|unknown> <agent turns> <terminals> <sessions>" from the live server.
+activity() {
+  curl -fsS -m 5 "http://127.0.0.1:$PORT/internal/workspace/activity" 2>/dev/null | python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+    runs = [run for run in data.get("activeRuns") or [] if run.get("sessionId") != sys.argv[1]]
+    print("quiet" if not runs else "busy", len(runs), int(data.get("openTerminals") or 0),
+          ",".join(run.get("sessionId", "?")[:8] for run in runs) or "-")
+except Exception:
+    print("unknown 0 0 -")
+' "$IGNORE_SESSION" || echo "unknown 0 0 -"
+}
+
+# Wait for no agent mid-turn; the switch below follows within seconds.
+waited=0
+while :; do
+  read -r state runs terminals sessions <<< "$(activity)"
+  if [ "$state" = quiet ]; then
+    log "quiet: no agent mid-turn; $terminals terminal(s) will close on restart"
+    break
+  fi
+  if [ "$FORCE_BUSY" = 1 ]; then
+    log "forced: restarting with activity $state ($runs agent turn(s): $sessions; $terminals terminal(s))"
+    break
+  fi
+  if [ "$state" = unknown ]; then
+    log "refused $SHA: the live release cannot tell whether agents are working (older than the activity check, or down); --force-busy to deploy anyway"
+    rm -rf "$NEXT"
+    exit 7
+  fi
+  if [ "$waited" -ge "$QUIET_WAIT" ]; then
+    log "refused $SHA: $runs agent turn(s) still running after ${QUIET_WAIT}s ($sessions); nothing changed"
+    rm -rf "$NEXT"
+    exit 7
+  fi
+  [ $((waited % 60)) -eq 0 ] && log "waiting: $runs agent turn(s) running ($sessions), $terminals terminal(s) open"
+  sleep 10
+  waited=$((waited + 10))
+done
 
 rm -rf "$PREV"
 mv "$LIVE" "$PREV"

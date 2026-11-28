@@ -14,6 +14,10 @@
 # successful workspace/checks status for it (a merge commit never had a run of
 # its own), the full checks run here first and a red one stops the deploy
 # (exit 6). WORKSPACE_DEPLOY_SKIP_CHECKS=1 is the operator's emergency bypass.
+#
+# The VM switches only when no agent is mid-turn (A7): it waits up to
+# WORKSPACE_DEPLOY_QUIET_WAIT seconds (default 900) and otherwise refuses
+# (exit 7). WORKSPACE_DEPLOY_FORCE_BUSY=1 restarts regardless.
 set -euo pipefail
 JOB_LIB="$(cd "$(dirname "$0")" && pwd)/lib/workspace-job-env.sh"
 [ -f "$JOB_LIB" ] || JOB_LIB="/Users/$(/usr/bin/id -un)/.local/share/cloudcli-companion/bin/lib/workspace-job-env.sh"
@@ -91,12 +95,25 @@ rsync -a --delete -e "ssh -F $SSH_CONFIG -o BatchMode=yes" \
 
 echo "==> promote $SHA"
 status=0
-ssh_vm "\$HOME/.local/bin/workspace-promote-release $SHA" || status=$?
+PROMOTE_ARGS=("$SHA")
+QUIET_WAIT="${WORKSPACE_DEPLOY_QUIET_WAIT:-}"
+if [ -n "$QUIET_WAIT" ]; then
+  [[ "$QUIET_WAIT" =~ ^[0-9]+$ ]] || { echo "WORKSPACE_DEPLOY_QUIET_WAIT must be seconds" >&2; exit 2; }
+  PROMOTE_ARGS+=(--quiet-wait "$QUIET_WAIT")
+fi
+[ "${WORKSPACE_DEPLOY_FORCE_BUSY:-0}" = 1 ] && PROMOTE_ARGS+=(--force-busy)
+IGNORE_SESSION="${WORKSPACE_DEPLOY_IGNORE_SESSION:-}"
+if [ -n "$IGNORE_SESSION" ]; then
+  [[ "$IGNORE_SESSION" =~ ^[A-Za-z0-9_.:-]+$ ]] || { echo "bad WORKSPACE_DEPLOY_IGNORE_SESSION" >&2; exit 2; }
+  PROMOTE_ARGS+=(--ignore-session "$IGNORE_SESSION")
+fi
+ssh_vm "\$HOME/.local/bin/workspace-promote-release ${PROMOTE_ARGS[*]}" || status=$?
 case "$status" in
   0) echo "shipped $ASSET ($SHA)" ;;
   3) echo "VM refused the release (see message above)" >&2 ;;
   4) echo "smoke test failed on the VM; the previous release is back" >&2 ;;
   5) echo "another deploy is running on the VM; try again later" >&2 ;;
+  7) echo "not deployed: agents were mid-turn (or the live release cannot say); nothing changed — retry later, or WORKSPACE_DEPLOY_FORCE_BUSY=1" >&2 ;;
   *) echo "promote failed with exit $status" >&2 ;;
 esac
 exit "$status"

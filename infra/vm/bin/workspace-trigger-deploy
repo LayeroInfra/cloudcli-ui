@@ -1,5 +1,54 @@
 #!/bin/bash
+# Deploy the green head of main to production — only on a person's explicit
+# command (roadmap A7). WORKSPACE_OWNER's Mac builds origin/main; this VM then
+# waits until no agent is mid-turn before it restarts the server, so nobody's
+# turn is cut off (terminals do close, and the run says how many).
+#
+#   workspace-trigger-deploy [--title "…"] [--wait]
+#   workspace-trigger-deploy --quiet-wait 1800      # wait up to 30 min for agents to finish
+#   workspace-trigger-deploy --force-busy           # restart even if agents are mid-turn
+#
+# Run from an agent's session, the agent's own turn (WORKSPACE_SESSION_ID, set
+# by the server) is not waited for — it ends with the restart, so do not --wait.
+#
+# Before starting it shows what is running now. The deploy refuses (exit 7 on
+# the Mac, nothing changed) when agents stay busy past --quiet-wait (default
+# 900 s) or the live release cannot tell — a release from before this check;
+# the first deploy of it needs --force-busy, after checking the list below.
 set -euo pipefail
 export WORKSPACE_JOB=deploy
 export WORKSPACE_BUILD_TITLE="${WORKSPACE_BUILD_TITLE:-Deploy workspace-ui}"
-exec "$HOME/.local/bin/workspace-trigger-build" "$@"
+PORT="${WORKSPACE_SERVICE_PORT:-3002}"
+
+PASS=()
+VARS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --quiet-wait)
+      [[ "${2:-}" =~ ^[0-9]+$ ]] || { echo "--quiet-wait needs seconds" >&2; exit 2; }
+      VARS+=(--var "WORKSPACE_DEPLOY_QUIET_WAIT=$2"); shift 2 ;;
+    --force-busy) VARS+=(--var "WORKSPACE_DEPLOY_FORCE_BUSY=1"); shift ;;
+    *) PASS+=("$1"); shift ;;
+  esac
+done
+
+# What a restart would interrupt right now.
+curl -fsS -m 5 "http://127.0.0.1:$PORT/internal/workspace/activity" 2>/dev/null | python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+except ValueError:
+    print("activity: the live release does not report it (older than the A7 check)", file=sys.stderr); sys.exit()
+runs = data.get("activeRuns") or []
+terminals = data.get("openTerminals", 0)
+print("activity now: %d agent turn(s) running, %s terminal(s) open" % (len(runs), terminals), file=sys.stderr)
+for run in runs:
+    print("  %s %s since %s" % (run.get("provider"), run.get("sessionId"), run.get("startedAt")), file=sys.stderr)
+' || echo "activity: the live server did not answer on :$PORT" >&2
+
+if [ -n "${WORKSPACE_SESSION_ID:-}" ] && [[ "$WORKSPACE_SESSION_ID" =~ ^[A-Za-z0-9_.:-]+$ ]]; then
+  VARS+=(--var "WORKSPACE_DEPLOY_IGNORE_SESSION=$WORKSPACE_SESSION_ID")
+  echo "this session's own turn (${WORKSPACE_SESSION_ID:0:8}) is not waited for; it ends with the restart" >&2
+fi
+
+exec "$HOME/.local/bin/workspace-trigger-build" ${PASS[@]+"${PASS[@]}"} ${VARS[@]+"${VARS[@]}"}
