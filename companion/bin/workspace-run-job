@@ -1,17 +1,101 @@
 #!/bin/bash
 # The one command the Woodpecker pipeline runs (see ci/cloudcli-checks.woodpecker.yml):
 # picks the job from WORKSPACE_JOB, which the trigger sets.
+#
+# It is the only script that has to be installed on the Mac (install.sh puts
+# it in ~/.local/bin). Every job script runs from the commit the job is about,
+# not from the installed copies, so a change to companion/bin takes effect
+# with its own commit and nobody has to rerun install.sh:
+#
+#   checks, stage  the commit being checked or staged (WORKSPACE_{CHECKS,STAGE}_SHA,
+#                  else the tip of the VM checkout's branch)
+#   deploy         origin/main on GitHub — what is being shipped
+#   make           the tip of the VM checkout's branch
+#
+# The commit's companion/bin is unpacked (git archive) into
+# ~/.cache/layero-workspace/runner/<sha>, one directory per commit, so jobs on
+# different commits never share files. When the commit cannot be fetched or
+# has no script for the job (older commits), the installed copy runs, and the
+# log says so. WORKSPACE_RUNNER=installed forces the installed copy.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 JOB="$(printf '%s' "${WORKSPACE_JOB:-checks}" | tr '[:upper:]' '[:lower:]')"
 echo "workspace-run-job job=$JOB owner=${WORKSPACE_OWNER:-} title=${WORKSPACE_BUILD_TITLE:-}"
 case "$JOB" in
-  checks) exec "$HERE/workspace-run-checks" ;;
-  deploy) exec "$HERE/workspace-run-deploy" ;;
-  make) exec "$HERE/workspace-run-make" ;;
-  stage) exec "$HERE/workspace-run-stage" ;;
+  checks|deploy|make|stage) ;;
   *)
     echo "unknown WORKSPACE_JOB=$JOB (checks|deploy|make|stage)" >&2
     exit 2
     ;;
 esac
+
+# The installed scripts: where this file is, or the installed companion.
+INSTALLED="$HERE"
+[ -x "$INSTALLED/workspace-run-$JOB" ] || INSTALLED="/Users/$(/usr/bin/id -un)/.local/share/cloudcli-companion/bin"
+
+REAL_HOME="/Users/$(/usr/bin/id -un)"
+[ -d "$REAL_HOME" ] || REAL_HOME="$HOME"
+RUNNER="${WORKSPACE_RUNNER_DIR:-$REAL_HOME/.cache/layero-workspace/runner}"
+SSH_CONFIG="$REAL_HOME/.config/layero-workspace/ssh/config"
+SSH_HOST="${WORKSPACE_DEPLOY_SSH_HOST:-layero-workspace}"
+VM_REPO="${WORKSPACE_CHECKS_VM_REPO:-/srv/Layero/cloud-cli}"
+GITHUB_URL="${WORKSPACE_GITHUB_URL:-https://github.com/LayeroInfra/cloudcli-ui.git}"
+# Where checks, stage and make commits come from; a local path in tests.
+SOURCE="${WORKSPACE_RUNNER_SOURCE:-$SSH_HOST:$VM_REPO}"
+
+run_installed() {
+  echo "workspace-run-job: scripts from the installed copy ($INSTALLED)${1:+ — $1}"
+  exec "$INSTALLED/workspace-run-$JOB"
+}
+[ "${WORKSPACE_RUNNER:-commit}" = installed ] && run_installed "WORKSPACE_RUNNER=installed"
+
+# fetch_commit: puts the job's commit into $RUNNER/repo.git and prints its sha.
+fetch_commit() {
+  local repo="$RUNNER/repo.git" ref sha
+  export GIT_SSH_COMMAND="ssh -F $SSH_CONFIG -o BatchMode=yes"
+  [ -d "$repo" ] || git init -q --bare "$repo"
+  case "$JOB" in
+    deploy)
+      git -C "$repo" fetch -q --no-tags "$GITHUB_URL" "+refs/heads/main:refs/remotes/github/main" || return 1
+      git -C "$repo" rev-parse "refs/remotes/github/main"
+      return
+      ;;
+    checks) ref="${WORKSPACE_CHECKS_REF:-}"; sha="${WORKSPACE_CHECKS_SHA:-}" ;;
+    stage) ref="${WORKSPACE_STAGE_REF:-}"; sha="${WORKSPACE_STAGE_SHA:-}" ;;
+    make) ref=""; sha="" ;;
+  esac
+  if [ -z "$ref" ]; then
+    ref="$(git ls-remote --symref "$SOURCE" HEAD | sed -nE 's#^ref: refs/heads/([^[:space:]]+)[[:space:]]+HEAD$#\1#p')"
+    [ -n "$ref" ] || return 1
+  fi
+  [[ "$ref" =~ ^[A-Za-z0-9._/-]+$ ]] || return 1
+  git -C "$repo" fetch -q --no-tags "$SOURCE" "+refs/heads/$ref:refs/remotes/vm/$ref" || return 1
+  if [ -n "$sha" ]; then
+    [[ "$sha" =~ ^[0-9a-f]{40}$ ]] && git -C "$repo" cat-file -e "$sha^{commit}" || return 1
+    echo "$sha"
+  else
+    git -C "$repo" rev-parse "refs/remotes/vm/$ref"
+  fi
+}
+
+mkdir -p "$RUNNER"
+SHA="$(fetch_commit 2>/dev/null)" || run_installed "could not fetch the job's commit"
+DIR="$RUNNER/$SHA"
+if [ ! -x "$DIR/companion/bin/workspace-run-$JOB" ]; then
+  TMP="$RUNNER/.unpack-$SHA-$$"
+  rm -rf "$TMP"
+  mkdir -p "$TMP"
+  if ! git -C "$RUNNER/repo.git" archive "$SHA" companion/bin | tar -x -C "$TMP" 2>/dev/null ||
+    [ ! -x "$TMP/companion/bin/workspace-run-$JOB" ]; then
+    rm -rf "$TMP"
+    run_installed "commit ${SHA:0:12} has no companion/bin/workspace-run-$JOB"
+  fi
+  # Another job may have unpacked the same commit meanwhile: either copy is fine.
+  mv "$TMP" "$DIR" 2>/dev/null || rm -rf "$TMP"
+fi
+# Unpacked commits older than a week go.
+find "$RUNNER" -mindepth 1 -maxdepth 1 -type d -name '[0-9a-f]*' -mtime +7 -exec rm -rf {} + 2>/dev/null || true
+touch "$DIR"
+
+echo "workspace-run-job: scripts from commit ${SHA:0:12}"
+exec "$DIR/companion/bin/workspace-run-$JOB"

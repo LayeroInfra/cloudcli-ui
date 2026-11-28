@@ -130,9 +130,16 @@ OS-пользователь `layerodev`, общие проекты, сессии
 а сервисы (`cloudui-live`, история для `workspace-promote-release`) остаются на
 общей копии `/srv/Layero/cloud-cli` (`WORKSPACE_WORKING_COPY`).
 
-Mac запускает **установленную** копию скриптов (`~/.local/bin/workspace-run-*`):
-после правки `companion/bin` на Mac нужно обновить runtime
-(`companion/bin/install.sh`), иначе прогон идёт по старому скрипту.
+**Скрипты задач берутся из коммита задачи.** Установлен на Mac только
+загрузчик `~/.local/bin/workspace-run-job`; он распаковывает `companion/bin`
+нужного коммита в `~/.cache/layero-workspace/runner/<sha>` и запускает скрипт
+оттуда: для checks и stage — проверяемый коммит, для deploy — `origin/main`,
+для make — вершину ветки копии на VM. Правка `companion/bin` действует со
+своим коммитом, `install.sh` на Mac для неё не нужен. В логе — строка
+`workspace-run-job: scripts from commit <sha>`; если коммит не достался, идёт
+установленная копия и лог пишет почему (`WORKSPACE_RUNNER=installed` —
+принудительно). Сам загрузчик и Swift-приложение по-прежнему обновляет
+`companion/bin/install.sh`.
 
 ### Стенд
 
