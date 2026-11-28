@@ -8,6 +8,10 @@
 #   workspace-trigger-build --title "…" --steps lint,typecheck  # only some steps
 #   workspace-trigger-build --title "…" --wait                  # wait and print the result
 #
+# Before starting, it checks that WORKSPACE_OWNER's Mac (its Woodpecker agent)
+# was in touch in the last 2 minutes; if not, it says so and exits 6 instead of
+# leaving a run pending — `--queue` starts it anyway, to run when the Mac wakes.
+#
 # It prints the run number; `--wait` (or workspace-run-wait <number> later)
 # waits for the run and prints its summary and the failure lines of failed
 # steps, exiting 0 only when the run succeeded.
@@ -36,6 +40,7 @@ JOB="$(printf '%s' "${WORKSPACE_JOB:-checks}" | tr '[:upper:]' '[:lower:]')"
 REF=""
 STEPS=""
 WAIT=0
+QUEUE=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --title)
@@ -56,6 +61,10 @@ while [ $# -gt 0 ]; do
       ;;
     --wait)
       WAIT=1
+      shift
+      ;;
+    --queue)
+      QUEUE=1
       shift
       ;;
     --owner)
@@ -121,11 +130,40 @@ elif [ -n "$REF" ] || [ -n "$STEPS" ]; then
   echo "workspace-trigger-build: --ref/--steps are for checks and stage only" >&2
   exit 2
 fi
-# The remaining arguments (--var …) go to woodpecker-cli; a --wait among them is ours.
+# The remaining arguments (--var …) go to woodpecker-cli; --wait/--queue among them are ours.
 PASS=()
 for arg in "$@"; do
-  if [ "$arg" = --wait ]; then WAIT=1; else PASS+=("$arg"); fi
+  case "$arg" in
+    --wait) WAIT=1 ;;
+    --queue) QUEUE=1 ;;
+    *) PASS+=("$arg") ;;
+  esac
 done
+
+# Is the owner's Mac there? Runners live only on the owners' Macs.
+SEEN="$(curl -fsS -m 10 -H "Authorization: Bearer $WOODPECKER_TOKEN" "$WOODPECKER_SERVER/api/agents" 2>/dev/null |
+  python3 -c '
+import json, sys, time
+owner = sys.argv[1]
+try:
+    agents = json.load(sys.stdin) or []
+except ValueError:
+    print("unknown"); sys.exit()
+ages = [int(time.time()) - int(a.get("last_contact") or 0) for a in agents if (a.get("custom_labels") or {}).get("owner") == owner]
+print(min(ages) if ages else "none")
+' "$OWNER" || echo unknown)"
+case "$SEEN" in
+  unknown) echo "(could not ask Woodpecker whether the Mac of $OWNER is online)" >&2 ;;
+  none|*[!0-9]*)
+    echo "no Woodpecker agent for owner=$OWNER: that Mac never registered (companion/bin/install.sh there)" >&2
+    [ "$QUEUE" = 1 ] || exit 6 ;;
+  *)
+    if [ "$SEEN" -gt 120 ]; then
+      echo "the Mac of $OWNER is offline: its agent was last in touch $((SEEN / 60)) min ago" >&2
+      echo "  wake it (or pass --queue to start the run anyway; it waits as pending until the Mac is back)" >&2
+      [ "$QUEUE" = 1 ] || exit 6
+    fi ;;
+esac
 OUT="$("$HOME/.local/bin/woodpecker-cli" "${ARGS[@]}" ${PASS[@]+"${PASS[@]}"})"
 printf '%s\n' "$OUT"
 NUMBER="$(printf '%s\n' "$OUT" | awk '$1 ~ /^[0-9]+$/ { print $1; exit }')"
