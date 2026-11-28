@@ -6,7 +6,9 @@
 #   WORKSPACE_CHECKS_REF    branch of /srv/Layero/cloud-cli on the VM (default: its HEAD branch)
 #   WORKSPACE_CHECKS_SHA    commit to check (default: the tip of that branch)
 #   WORKSPACE_CHECKS_STEPS  comma-separated subset of the steps (default: all), see
-#                           lib/workspace-checks-steps.sh
+#                           lib/workspace-checks-steps.sh; "quick" picks a quick run's
+#                           steps for the changes since WORKSPACE_CHECKS_BASE
+#   WORKSPACE_CHECKS_BASE   commit a quick run compares with (the branch's merge-base with main)
 #
 # The Builds button sends neither REF nor SHA: then the VM checkout's current
 # branch and commit are checked. The commit comes straight from the VM over the
@@ -33,15 +35,35 @@ DIR="$ROOT/cloud-cli"
 export PATH="${HOME}/.local/lib/layero-node/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
 IFS=',' read -r -a WANT <<< "${WORKSPACE_CHECKS_STEPS:-}"
-for s in ${WANT[@]+"${WANT[@]}"}; do
-  check_in_list "$s" "${CHECK_STEPS[@]}" || { echo "WORKSPACE_CHECKS_STEPS: unknown step $s (steps: ${CHECK_STEPS[*]})" >&2; exit 2; }
-done
+QUICK=0
+if [ "${WANT[*]:-}" = quick ]; then
+  QUICK=1
+  WANT=()
+else
+  for s in ${WANT[@]+"${WANT[@]}"}; do
+    check_in_list "$s" "${CHECK_STEPS[@]}" "${CHECK_EXTRA_STEPS[@]}" ||
+      { echo "WORKSPACE_CHECKS_STEPS: unknown step $s (steps: ${CHECK_STEPS[*]} ${CHECK_EXTRA_STEPS[*]}, or quick)" >&2; exit 2; }
+  done
+fi
+BASE="${WORKSPACE_CHECKS_BASE:-}"
+[ -z "$BASE" ] || [[ "$BASE" =~ ^[0-9a-f]{40}$ ]] || { echo "WORKSPACE_CHECKS_BASE must be a 40-hex commit" >&2; exit 2; }
 PARTIAL=0
-[ "${#WANT[@]}" -gt 0 ] && PARTIAL=1
+{ [ "${#WANT[@]}" -gt 0 ] || [ "$QUICK" = 1 ]; } && PARTIAL=1
 
 vm_commit_lock "$ROOT" checks
 vm_commit_checkout "$DIR" "${WORKSPACE_CHECKS_REF:-}" "${WORKSPACE_CHECKS_SHA:-}"
 cd "$DIR"
+if [ "$QUICK" = 1 ]; then
+  if [ -n "$BASE" ] && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+    # The *-changed steps read CHECK_BASE in this shell; quick_check_steps runs in a subshell.
+    export CHECK_BASE="$BASE"
+    read -r -a WANT <<< "$(quick_check_steps "$BASE")"
+    echo "quick run: changes since ${BASE:0:12} — $(git diff --name-only "$BASE" HEAD | wc -l | tr -d ' ') files; steps: ${WANT[*]}"
+  else
+    echo "quick run without a usable base commit: lint, typecheck and all tests"
+    WANT=(shell lint typecheck test-server test-client)
+  fi
+fi
 echo "workspace-run-checks owner=$JOB_OWNER ref=$VM_REF commit=$(git rev-parse --short HEAD) steps=${WORKSPACE_CHECKS_STEPS:-all}"
 git log -1 --format='%h %an: %s'
 

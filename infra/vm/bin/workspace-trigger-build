@@ -7,6 +7,8 @@
 #   workspace-trigger-build --title "…" --ref feat/x            # checks of a branch (e.g. a worktree's)
 #   workspace-trigger-build --title "…" --steps lint,typecheck  # only some steps
 #   workspace-trigger-build --title "…" --wait                  # wait and print the result
+#   workspace-trigger-build --title "…" --quick --wait          # quick run: lint, typecheck and the
+#                                                               # tests of what changed since main (A5)
 #
 # Before starting, it checks that WORKSPACE_OWNER's Mac (its Woodpecker agent)
 # was in touch in the last 2 minutes; if not, it says so and exits 6 instead of
@@ -41,6 +43,7 @@ REF=""
 STEPS=""
 WAIT=0
 QUEUE=0
+QUICK=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --title)
@@ -65,6 +68,10 @@ while [ $# -gt 0 ]; do
       ;;
     --queue)
       QUEUE=1
+      shift
+      ;;
+    --quick)
+      QUICK=1
       shift
       ;;
     --owner)
@@ -124,10 +131,21 @@ if [ "$JOB" = checks ] || [ "$JOB" = stage ]; then
   PREFIX=WORKSPACE_CHECKS
   [ "$JOB" = stage ] && PREFIX=WORKSPACE_STAGE
   ARGS+=(--var "${PREFIX}_REF=${REF}" --var "${PREFIX}_SHA=${SHA}")
-  [ -n "$STEPS" ] && ARGS+=(--var "WORKSPACE_CHECKS_STEPS=${STEPS}")
+  if [ "$QUICK" = 1 ] && [ "$JOB" = checks ]; then
+    [ -z "$STEPS" ] || { echo "workspace-trigger-build: --quick picks its own steps; drop --steps" >&2; exit 2; }
+    STEPS=quick
+    # What the branch changed: since where it left main (fresh from GitHub when reachable).
+    git -C "$CHECKOUT" fetch -q origin main 2>/dev/null || true
+    BASE="$(git -C "$CHECKOUT" merge-base "$SHA" origin/main 2>/dev/null || git -C "$CHECKOUT" merge-base "$SHA" main 2>/dev/null || true)"
+    if [ -n "$BASE" ]; then
+      ARGS+=(--var "WORKSPACE_CHECKS_BASE=${BASE}")
+      echo "quick: changes since ${BASE:0:12} ($(git -C "$CHECKOUT" diff --name-only "$BASE" "$SHA" | wc -l | tr -d ' ') files)" >&2
+    fi
+  fi
+  if [ -n "$STEPS" ]; then ARGS+=(--var "WORKSPACE_CHECKS_STEPS=${STEPS}"); fi
   echo "$JOB: $REF @ ${SHA:0:12}" >&2
-elif [ -n "$REF" ] || [ -n "$STEPS" ]; then
-  echo "workspace-trigger-build: --ref/--steps are for checks and stage only" >&2
+elif [ -n "$REF" ] || [ -n "$STEPS" ] || [ "$QUICK" = 1 ]; then
+  echo "workspace-trigger-build: --ref/--steps/--quick are for checks and stage only" >&2
   exit 2
 fi
 # The remaining arguments (--var …) go to woodpecker-cli; --wait/--queue among them are ours.
