@@ -33,6 +33,10 @@ for arg in "$@"; do
 done
 
 WORKSPACES_ROOT="${WORKSPACES_ROOT:-$(dirname "$REPO")}"
+# The shared working copy the services point at (cloudui-live serves it, the
+# release promoter reads its history). Not necessarily $REPO: installing from a
+# worktree (an agent's branch) must not move the services onto that worktree.
+WORKING_COPY="${WORKSPACE_WORKING_COPY:-$WORKSPACES_ROOT/cloud-cli}"
 BIN="$HOME/.local/bin"
 UNITS="$HOME/.config/systemd/user"
 STATE="$HOME/.local/state"
@@ -96,11 +100,12 @@ PY
   return "$status"
 }
 
-export HOME USER="${USER:-$(id -un)}" REPO WORKSPACES_ROOT NODE_VERSION
+export HOME USER="${USER:-$(id -un)}" REPO WORKSPACES_ROOT WORKING_COPY NODE_VERSION
 
 # ---------------------------------------------------------------- preflight
 
 say "Layero Workspace VM ($MODE) — repo $REPO"
+[ "$REPO" = "$WORKING_COPY" ] || say "  (files from $REPO; services keep pointing at $WORKING_COPY)"
 [ "$(uname -s)-$(uname -m)" = Linux-x86_64 ] || { echo "only Linux x86_64 is supported" >&2; exit 1; }
 for tool in curl python3 openssl git flock systemctl; do
   command -v "$tool" >/dev/null || { echo "missing $tool (install it with the OS package manager)" >&2; exit 1; }
@@ -423,10 +428,10 @@ if [ -f "$HOME/.local/share/cloudcli-releases/workspace-ui/SHIPPED_FROM" ]; then
 else
   TODO+=("no UI release yet: deploy one from a Mac (Builds → deploy job, or workspace-trigger-deploy)")
 fi
-if [ -d "$REPO/node_modules/vite" ]; then
+if [ -d "$WORKING_COPY/node_modules/vite" ]; then
   start_or_restart cloudui-live.service "$(changed_flag cloudui-live.service)"
 else
-  TODO+=("live preview: npm ci in $REPO, then systemctl --user start cloudui-live.service")
+  TODO+=("live preview: npm ci in $WORKING_COPY, then systemctl --user start cloudui-live.service")
 fi
 if [ -f /srv/Layero/frontend/control-plane/node_modules/vite/bin/vite.js ]; then
   start_or_restart workspace-built-preview-refresh.timer "$(changed_flag workspace-built-preview-refresh.timer)"

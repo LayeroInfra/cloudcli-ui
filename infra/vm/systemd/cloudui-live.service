@@ -2,7 +2,7 @@
 Description=CloudUI live frontend preview
 
 [Service]
-WorkingDirectory=@REPO@
+WorkingDirectory=@WORKING_COPY@
 Environment=HOST=127.0.0.1 SERVER_PORT=3002
 Environment=TMPDIR=%h/.local/state/dev-tmp
 ExecStart=%h/.local/bin/node %h/.local/bin/cloudui-live.mjs

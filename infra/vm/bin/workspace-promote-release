@@ -27,7 +27,7 @@ INCOMING="$RELEASES/workspace-ui.incoming-$SHA"
 # Where the release's node_modules come from; its package-lock is what they were installed from.
 DEPS_ROOT="${WORKSPACE_DEPS_ROOT:-$HOME/src/cloudcli-ui}"
 # A clone of the UI repo, used to tell whether one commit is newer than another.
-GIT_ROOT="${WORKSPACE_GIT_ROOT:-@REPO@}"
+GIT_ROOT="${WORKSPACE_GIT_ROOT:-@WORKING_COPY@}"
 SERVICE="${WORKSPACE_SERVICE:-frontend-cloudcli}"
 PORT="${WORKSPACE_SERVICE_PORT:-3002}"
 LOCK="$HOME/.local/state/workspace-release.lock"
