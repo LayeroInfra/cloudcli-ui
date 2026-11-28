@@ -1,0 +1,7 @@
+# Tests the full checks run (companion/bin/workspace-run-checks) skips.
+# One repo-relative test file per line, then `#` and why it is here, the run
+# that showed it and the date. The list must only shrink: fix a test and
+# delete its line in the same commit. Adding one needs a reason a reviewer
+# can check, not "flaky".
+
+src/modules/sidebar/tests/sidebarAccount.test.tsx  # crashes vitest's fork worker under the Mac agent (ERR_IPC_CHANNEL_CLOSED), runs #21 and #26, 2026-11-26

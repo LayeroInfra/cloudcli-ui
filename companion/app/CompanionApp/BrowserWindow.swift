@@ -29,6 +29,14 @@ final class BrowserWindow: NSObject, NSWindowDelegate, WKNavigationDelegate, NST
     menu.addItem(item)
   }
 
+  /// Previews and browser windows share one persistent store, so a stuck
+  /// sign-in or demo flag survives restarts; this clears it for localhost only.
+  static func addPreviewDataReset(to menu: NSMenu) {
+    let item = NSMenuItem(title: "Сбросить данные localhost-превью", action: #selector(InspectorMenuTarget.resetPreviewData(_:)), keyEquivalent: "")
+    item.target = inspectorMenuTarget
+    menu.addItem(item)
+  }
+
   private static let inspectorMenuTarget = InspectorMenuTarget()
 
   private final class InspectorMenuTarget: NSObject {
@@ -37,6 +45,20 @@ final class BrowserWindow: NSObject, NSWindowDelegate, WKNavigationDelegate, NST
       inspectorEnabled.toggle()
       item.state = inspectorEnabled ? .on : .off
       for view in inspectableViews.allObjects { view.isInspectable = inspectorEnabled }
+    }
+
+    @objc func resetPreviewData(_ item: NSMenuItem) {
+      let store = WKWebsiteDataStore.default()
+      let types = WKWebsiteDataStore.allWebsiteDataTypes()
+      store.fetchDataRecords(ofTypes: types) { records in
+        let local = records.filter { ["localhost", "127.0.0.1"].contains($0.displayName.lowercased()) }
+        store.removeData(ofTypes: types, for: local) {
+          for view in inspectableViews.allObjects
+          where ["localhost", "127.0.0.1"].contains(view.url?.host?.lowercased() ?? "") {
+            view.reload()
+          }
+        }
+      }
     }
   }
 

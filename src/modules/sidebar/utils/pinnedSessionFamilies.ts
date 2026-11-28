@@ -55,11 +55,15 @@ export function buildPinnedSessionFamilies(pins: PinnedConversationListItem[], p
   const families: PinnedSessionFamily[] = [];
   for (const pin of pins) {
     if (ancestorsOf(pin).some((id) => pinnedIds.has(id))) continue;
+    // A pin whose session lost its project (the project was removed) has no
+    // project to open it in or hang its tree from, so it is not drawn.
+    const projectId = pin.projectId ?? loaded.get(pin.sessionId)?.__projectId;
+    if (!projectId) continue;
     const root: SessionWithProvider = loaded.get(pin.sessionId) ?? ({
       id: pin.sessionId,
       summary: pin.sessionTitle,
       __provider: pin.provider,
-      __projectId: pin.projectId,
+      __projectId: projectId,
       lastActivity: pin.lastActivity ?? undefined,
     } as SessionWithProvider);
     const members: SessionWithProvider[] = [root];
@@ -81,12 +85,12 @@ export function buildPinnedSessionFamilies(pins: PinnedConversationListItem[], p
     // unpinned ancestors above it.
     const rows = buildProjectSessionTree(
       [{ ...root, forkedFromSessionId: null, forkAncestors: undefined }, ...forks.map((fork) => ({ ...fork, forkAncestors: undefined }))],
-      pin.projectId,
+      projectId,
     );
     families.push({
       pin,
-      projectId: pin.projectId,
-      projectDisplayName: projectById.get(pin.projectId)?.displayName ?? pin.projectDisplayName,
+      projectId,
+      projectDisplayName: projectById.get(projectId)?.displayName ?? pin.projectDisplayName,
       rows,
     });
   }

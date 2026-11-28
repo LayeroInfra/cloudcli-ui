@@ -14,6 +14,9 @@ final class WorkspacePage: NSObject, WKNavigationDelegate {
     preview = WorkspacePreview(origin: url)
     let config = WKWebViewConfiguration()
     config.websiteDataStore = .nonPersistent()
+    // A URL a workspace program asks to open (`$BROWSER`, login flows) arrives
+    // over the shell socket, not from a click; without this WebKit drops it.
+    config.preferences.javaScriptCanOpenWindowsAutomatically = true
     let encodedToken = String(decoding: try! JSONEncoder().encode(token), as: UTF8.self)
     config.userContentController.addUserScript(WKUserScript(
       source: """

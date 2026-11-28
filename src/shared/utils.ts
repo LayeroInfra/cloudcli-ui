@@ -14,6 +14,21 @@ export const IS_PLATFORM = import.meta.env?.VITE_IS_PLATFORM === 'true';
 
 // ---------------------------
 
+//----------------- WORKSPACE STAGE ------------
+
+/**
+ * Tells whether this page is served by the Workspace stage — the branch build
+ * the gateway on :9443 routes to while the `workspace_stage=1` cookie is set
+ * (`/__stage/on`, `/__stage/off`). The stage shares the production origin, so
+ * the auth token and the stage banner use this to keep the two apart.
+ */
+export function isWorkspaceStage(): boolean {
+  if (typeof document === 'undefined') return false;
+  return document.cookie.split(';').some((part) => part.trim() === 'workspace_stage=1');
+}
+
+// ---------------------------
+
 //----------------- TAILWIND CLASS COMPOSITION ------------
 
 /**

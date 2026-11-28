@@ -1,7 +1,14 @@
 #!/bin/bash
 # Create a Woodpecker pipeline for WORKSPACE_OWNER from the environment only.
 # Owner is never taken from argv — use the CloudUI API (session user) instead.
-# WORKSPACE_JOB=checks|deploy selects the Mac runner (default checks).
+# WORKSPACE_JOB=checks|deploy|make|stage selects the Mac runner (default checks).
+#
+#   workspace-trigger-build --title "session rename"            # checks of /srv/Layero/cloud-cli HEAD
+#   workspace-trigger-build --title "…" --ref feat/x            # checks of a branch (e.g. a worktree's)
+#   workspace-trigger-build --title "…" --steps lint,typecheck  # only some steps
+#
+# Checks run on the Mac on the commit, not on the VM's working files:
+# uncommitted edits are not checked (a warning says so).
 set -euo pipefail
 # shellcheck source=/dev/null
 source "$HOME/.local/bin/workspace-owner-lib.sh"
@@ -21,6 +28,8 @@ fi
 OWNER="$(normalize_workspace_owner "${WORKSPACE_OWNER:-}")"
 TITLE="${WORKSPACE_BUILD_TITLE:-}"
 JOB="$(printf '%s' "${WORKSPACE_JOB:-checks}" | tr '[:upper:]' '[:lower:]')"
+REF=""
+STEPS=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --title)
@@ -29,6 +38,14 @@ while [ $# -gt 0 ]; do
       ;;
     --job)
       JOB="$(printf '%s' "${2:-}" | tr '[:upper:]' '[:lower:]')"
+      shift 2
+      ;;
+    --ref)
+      REF="${2:-}"
+      shift 2
+      ;;
+    --steps)
+      STEPS="${2:-}"
       shift 2
       ;;
     --owner)
@@ -47,9 +64,9 @@ if [ -z "$OWNER" ]; then
 fi
 
 case "$JOB" in
-  checks|deploy) ;;
+  checks|deploy|make|stage) ;;
   *)
-    echo "workspace-trigger-build: WORKSPACE_JOB must be checks or deploy (got $JOB)" >&2
+    echo "workspace-trigger-build: WORKSPACE_JOB must be checks, deploy, make or stage (got $JOB)" >&2
     exit 2
     ;;
 esac
@@ -57,6 +74,8 @@ esac
 if [ -z "$TITLE" ]; then
   if [ "$JOB" = "deploy" ]; then
     TITLE="Deploy workspace-ui"
+  elif [ "$JOB" = "stage" ]; then
+    TITLE="Stage ${REF:-current branch}"
   else
     TITLE="Manual checks"
   fi
@@ -68,4 +87,28 @@ ARGS=(pipeline create buildadmin/cloudcli-checks --branch "$BRANCH" \
   --var "WORKSPACE_OWNER=${OWNER}" \
   --var "WORKSPACE_JOB=${JOB}" \
   --var "WORKSPACE_BUILD_TITLE=${TITLE}")
+
+# checks and stage run on one commit of the CloudUI checkout, which the Mac fetches from this VM.
+if [ "$JOB" = checks ] || [ "$JOB" = stage ]; then
+  CHECKOUT="${WORKSPACE_CHECKS_CHECKOUT:-/srv/Layero/cloud-cli}"
+  if [ -n "$REF" ]; then
+    SHA="$(git -C "$CHECKOUT" rev-parse --verify --quiet "refs/heads/$REF^{commit}")" ||
+      { echo "no branch $REF in $CHECKOUT" >&2; exit 1; }
+  else
+    REF="$(git -C "$CHECKOUT" symbolic-ref --quiet --short HEAD)" ||
+      { echo "$CHECKOUT: HEAD is detached — switch to a branch or pass --ref" >&2; exit 1; }
+    SHA="$(git -C "$CHECKOUT" rev-parse HEAD)"
+    if [ -n "$(git -C "$CHECKOUT" status --porcelain --untracked-files=no)" ]; then
+      echo "⚠️  $CHECKOUT has uncommitted edits — the Mac runs only commit ${SHA:0:12}" >&2
+    fi
+  fi
+  PREFIX=WORKSPACE_CHECKS
+  [ "$JOB" = stage ] && PREFIX=WORKSPACE_STAGE
+  ARGS+=(--var "${PREFIX}_REF=${REF}" --var "${PREFIX}_SHA=${SHA}")
+  [ -n "$STEPS" ] && ARGS+=(--var "WORKSPACE_CHECKS_STEPS=${STEPS}")
+  echo "$JOB: $REF @ ${SHA:0:12}" >&2
+elif [ -n "$REF" ] || [ -n "$STEPS" ]; then
+  echo "workspace-trigger-build: --ref/--steps are for checks and stage only" >&2
+  exit 2
+fi
 exec "$HOME/.local/bin/woodpecker-cli" "${ARGS[@]}" "$@"

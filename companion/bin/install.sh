@@ -94,7 +94,7 @@ if [ "${SKIP_IDENTITY:-1}" != "1" ]; then
 fi
 
 install -m 755 "$SHARE/bin/cloudcli-build-agent" "$HOME/.local/bin/cloudcli-build-agent"
-for job in workspace-run-job workspace-run-checks workspace-run-deploy; do
+for job in workspace-run-job workspace-run-checks workspace-run-deploy workspace-run-make workspace-run-stage; do
   install -m 755 "$SHARE/bin/$job" "$HOME/.local/bin/$job"
 done
 install -m 755 "$SHARE/bin/start-companion.sh" "$HOME/.local/bin/layero-workspace"

@@ -1,22 +1,66 @@
 #!/bin/bash
-# Runs on this Mac inside a Woodpecker local step: the CloudUI checks against
-# the checkout named in identity.json, as it is on disk (uncommitted edits too).
+# Runs on this Mac inside a Woodpecker local step: the full CloudUI checks on
+# one commit, in a clean clone — never in the developer's checkout.
+#
+# Set by workspace-trigger-build on the VM (all optional):
+#   WORKSPACE_CHECKS_REF    branch of /srv/Layero/cloud-cli on the VM (default: its HEAD branch)
+#   WORKSPACE_CHECKS_SHA    commit to check (default: the tip of that branch)
+#   WORKSPACE_CHECKS_STEPS  comma-separated subset of the steps (default: all), see
+#                           lib/workspace-checks-steps.sh
+#
+# The Builds button sends neither REF nor SHA: then the VM checkout's current
+# branch and commit are checked. The commit comes straight from the VM over the
+# companion SSH key, so it need not be pushed first; uncommitted edits on the
+# VM are not checked.
+#
+# Every step runs even after one fails; the summary lists them all and the exit
+# status is non-zero when any failed. When gh is signed in on this Mac and the
+# commit is on GitHub, the result is posted as the commit status "workspace/checks"
+# (a partial run with WORKSPACE_CHECKS_STEPS posts nothing: it is not the gate).
 set -euo pipefail
-# Installed copies live in ~/.local/bin, the library in the installed companion.
 JOB_LIB="$(cd "$(dirname "$0")" && pwd)/lib/workspace-job-env.sh"
 [ -f "$JOB_LIB" ] || JOB_LIB="/Users/$(/usr/bin/id -un)/.local/share/cloudcli-companion/bin/lib/workspace-job-env.sh"
 # shellcheck source=lib/workspace-job-env.sh
 source "$JOB_LIB"
+LIB_DIR="$(dirname "$JOB_LIB")"
+# shellcheck source=lib/workspace-vm-commit.sh
+source "$LIB_DIR/workspace-vm-commit.sh"
+# shellcheck source=lib/workspace-checks-steps.sh
+source "$LIB_DIR/workspace-checks-steps.sh"
 
-cd "$JOB_CHECKOUT"
-export PATH="${JOB_CHECKOUT}/node_modules/.bin:$PATH"
-echo "workspace-run-checks owner=$JOB_OWNER checkout=$JOB_CHECKOUT commit=$(git rev-parse --short HEAD 2>/dev/null || echo '?')$(git diff --quiet 2>/dev/null || echo '+dirty')"
-tsx --tsconfig server/tsconfig.json --test \
-  server/modules/providers/tests/claude-sessions.test.ts \
-  server/modules/providers/tests/claude-rate-limits.test.ts \
-  server/modules/workspace-builds/tests/workspace-builds.test.ts
-# sidebarAccount.test.tsx is left out: under the Mac agent it crashes vitest's
-# worker pool (ERR_IPC_CHANNEL_CLOSED, runs #21 and #26) and fails the run.
-vitest run --pool=forks --maxWorkers=1 --fileParallelism=false \
-  src/modules/project-workspace/tests/workspaceConnectionIndicator.test.tsx \
-  src/modules/project-workspace/tests/workspaceBuildsPanel.test.tsx
+ROOT="${WORKSPACE_CHECKS_DIR:-$HOME/.cache/layero-workspace/checks}"
+DIR="$ROOT/cloud-cli"
+export PATH="${HOME}/.local/lib/layero-node/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+
+IFS=',' read -r -a WANT <<< "${WORKSPACE_CHECKS_STEPS:-}"
+for s in ${WANT[@]+"${WANT[@]}"}; do
+  check_in_list "$s" "${CHECK_STEPS[@]}" || { echo "WORKSPACE_CHECKS_STEPS: unknown step $s (steps: ${CHECK_STEPS[*]})" >&2; exit 2; }
+done
+PARTIAL=0
+[ "${#WANT[@]}" -gt 0 ] && PARTIAL=1
+
+vm_commit_lock "$ROOT" checks
+vm_commit_checkout "$DIR" "${WORKSPACE_CHECKS_REF:-}" "${WORKSPACE_CHECKS_SHA:-}"
+cd "$DIR"
+echo "workspace-run-checks owner=$JOB_OWNER ref=$VM_REF commit=$(git rev-parse --short HEAD) steps=${WORKSPACE_CHECKS_STEPS:-all}"
+git log -1 --format='%h %an: %s'
+
+status() { [ "$PARTIAL" = 1 ] || post_check_status "$VM_SHA" "$@"; }
+status pending "running on $JOB_OWNER's Mac"
+# A run that dies before the summary (npm ci, a lost VM) must not leave GitHub at "pending".
+FINISHED=0
+trap 'rmdir "$VM_COMMIT_LOCK"; [ "$FINISHED" = 1 ] || status error "checks aborted before the summary"' EXIT
+
+vm_commit_npm_ci "$DIR"
+export PATH="$DIR/node_modules/.bin:$PATH"
+
+run_check_steps ${WANT[@]+"${WANT[@]}"}
+FINISHED=1
+print_check_summary "$(git rev-parse --short HEAD) ($VM_REF)"
+
+if [ "$CHECK_FAILED" -eq 0 ]; then
+  status success "${#CHECK_RESULTS[@]} steps passed"
+  exit 0
+fi
+status failure "$CHECK_FAILED of ${#CHECK_RESULTS[@]} steps failed"
+exit 1

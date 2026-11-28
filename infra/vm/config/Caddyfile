@@ -21,5 +21,39 @@
 	request_body {
 		max_size 2MB
 	}
-	reverse_proxy 127.0.0.1:3002
+
+	# The stage (infra/vm/bin/workspace-stage) shares this address: a cookie
+	# picks it. /__stage/on sets it, /__stage/off clears it; while it is set
+	# every request of this browser (pages, API, WebSockets) goes to the stage.
+	@stage_on path /__stage/on
+	handle @stage_on {
+		header Set-Cookie "workspace_stage=1; Path=/; Secure; SameSite=Lax"
+		redir * / 302
+	}
+	@stage_off path /__stage/off
+	handle @stage_off {
+		header Set-Cookie "workspace_stage=; Path=/; Max-Age=0; Secure; SameSite=Lax"
+		redir * / 302
+	}
+	@stage expression {http.request.cookie.workspace_stage} == "1"
+	handle @stage {
+		reverse_proxy 127.0.0.1:3102
+	}
+	handle {
+		reverse_proxy 127.0.0.1:3002
+	}
+	handle_errors 502 503 {
+		@stage_down expression {http.request.cookie.workspace_stage} == "1"
+		handle @stage_down {
+			header Content-Type "text/html; charset=utf-8"
+			respond <<HTML
+				<!doctype html><meta charset="utf-8"><title>Stage is not running</title>
+				<body style="font:15px -apple-system,system-ui,sans-serif;max-width:36em;margin:4em auto;padding:0 1em">
+				<h1 style="font-size:20px">Стенд не запущен</h1>
+				<p>Этот браузер переключён на стенд ветки, но стенд сейчас остановлен.
+				Запустить: <code>workspace-trigger-stage</code> на VM.</p>
+				<p><a href="/__stage/off">Вернуться в рабочий Workspace</a></p>
+				HTML 503
+		}
+	}
 }

@@ -14,6 +14,7 @@ import { TERMINAL_INIT_DELAY_MS } from '@/shared/constants';
 import { installMobileTerminalSelection } from '@/modules/shell/utils/mobileTerminalSelection';
 import { sendSocketMessage } from '@/modules/shell/utils/socket';
 import { ensureXtermFocusStyles } from '@/modules/shell/utils/terminalStyles';
+import { openWorkspaceUrl } from '@/modules/site-preview';
 
 const TERMINAL_RESIZE_DELAY_MS = 50;
 
@@ -243,7 +244,12 @@ export function useShellTerminal({
 
     // Avoid wrapped partial links in compact login flows.
     if (!minimal) {
-      nextTerminal.loadAddon(new WebLinksAddon());
+      // A workspace dev server opens in the Browser panel; the default handler
+      // would open the viewer's own localhost in a new window.
+      nextTerminal.loadAddon(new WebLinksAddon((event, uri) => {
+        event.preventDefault();
+        openWorkspaceUrl(uri);
+      }));
     }
 
     try {

@@ -109,7 +109,6 @@ temp/
 .cline/
 .windsurf/
 .serena/
-CLAUDE.md
 .mcp.json
 .gemini/
 
@@ -151,3 +150,6 @@ electron/*.tar.gz
 # Test fixtures created beside the tests (cleaned up by the tests; kept out of the tree if a run is killed)
 server/**/tests/read-only-roots-fixture-*/
 server/**/tests/file-tree-outside-*/
+
+# Workspace e2e (ci/e2e) output
+ci/e2e/test-results/

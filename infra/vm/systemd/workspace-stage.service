@@ -1,0 +1,21 @@
+[Unit]
+Description=Workspace stage: a CloudUI branch build with its own data and a stand-in Claude
+# Started and stopped by workspace-stage, never at boot: it is not enabled.
+
+[Service]
+# Its own HOME: ~/.cloudcli (database), ~/.claude and terminals of the stage
+# never see production's.
+Environment=HOME=%h/.local/state/workspace-stage/home
+WorkingDirectory=%h/.local/state/workspace-stage/home
+UMask=0077
+Environment=HOST=127.0.0.1 PORT=3102 SERVER_PORT=3102 NODE_ENV=production WORKSPACES_ROOT=%h/.local/state/workspace-stage/home/projects
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=TMPDIR=%h/.local/state/dev-tmp
+# Chats on the stage talk to the stand-in, never to a real account.
+Environment=CLAUDE_CLI_PATH=%h/.local/share/cloudcli-stage/release/ci/fake-claude/claude.mjs
+EnvironmentFile=-%h/.local/state/workspace-stage/stage.env
+ExecStart=%h/.local/bin/node %h/.local/share/cloudcli-stage/release/dist-server/server/index.js
+Restart=on-failure
+# Small and the first to go under memory pressure: production comes first.
+MemoryMax=700M
+OOMScoreAdjust=600

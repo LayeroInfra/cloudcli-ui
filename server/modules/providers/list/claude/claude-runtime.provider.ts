@@ -30,6 +30,7 @@ import {
   CLAUDE_ULTRACODE_EFFORT
 } from '@/modules/providers/list/claude/claude-models.provider.js';
 import { resolveClaudeCodeExecutablePath } from '@/shared/claude-cli-path.js';
+import { workspaceBrowserEnv } from '@/shared/workspace-browser.js';
 import { askClaudeSideQuestion } from '@/modules/providers/list/claude/claude-side-question.provider.js';
 import {
   createNotificationEvent,
@@ -384,6 +385,8 @@ function mapCliOptionsToSDK(options: AnyRecord = {}) {
   const sdkOptions: AnyRecord = {};
 
   sdkOptions.env = buildClaudeSdkEnv();
+  // A Bash tool's `$BROWSER`/`xdg-open` prints the URL instead of failing.
+  Object.assign(sdkOptions.env, workspaceBrowserEnv(sdkOptions.env));
 
   // Resolve the executable eagerly on Windows because the SDK uses raw child_process.spawn,
   // which does not reliably follow npm's shell wrappers like cross-spawn does.

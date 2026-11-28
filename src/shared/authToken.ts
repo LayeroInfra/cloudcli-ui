@@ -7,6 +7,8 @@
  * AuthContext, the shell socket and the file-tree uploader actually import.
  */
 
+import { isWorkspaceStage } from '@/shared/utils';
+
 export const AUTH_TOKEN_REFRESHED_EVENT = 'auth-token-refreshed';
 export const AUTH_SESSION_EXPIRED_EVENT = 'auth-session-expired';
 
@@ -71,15 +73,23 @@ export const getAuthTokenRefreshDelay = (token: unknown): number | null => {
   return Math.max(0, refreshAt - Date.now());
 };
 
+/**
+ * localStorage key of the JWT. The Workspace stage runs on the production
+ * origin with its own users and secret, so it keeps its token under another
+ * key: signing in or out on the stage must never touch the production sign-in.
+ */
+export const getAuthTokenStorageKey = (): string =>
+  (isWorkspaceStage() ? 'workspace-stage-auth-token' : 'auth-token');
+
 export const expireAuthSession = (): void => {
-  localStorage.removeItem('auth-token');
+  localStorage.removeItem(getAuthTokenStorageKey());
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event(AUTH_SESSION_EXPIRED_EVENT));
   }
 };
 
 export const getStoredAuthToken = (): string | null => {
-  const token = localStorage.getItem('auth-token');
+  const token = localStorage.getItem(getAuthTokenStorageKey());
   if (token && isAuthTokenExpired(token)) {
     expireAuthSession();
     return null;
@@ -100,7 +110,7 @@ export const storeAuthToken = (token: unknown): boolean => {
     return false;
   }
 
-  localStorage.setItem('auth-token', token);
+  localStorage.setItem(getAuthTokenStorageKey(), token);
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent(AUTH_TOKEN_REFRESHED_EVENT, { detail: token }));
   }
