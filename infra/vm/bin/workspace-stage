@@ -19,6 +19,9 @@
 #
 # Exit codes: 0 ok, 2 usage, 3 refused (bad stage, dependency change), 4 not healthy.
 set -euo pipefail
+# workspace-run-stage calls this over a non-interactive SSH, whose PATH lacks
+# ~/.local/bin — where the pinned node (seeding) and the other helpers live.
+export PATH="$HOME/.local/bin:$PATH"
 
 SHARE="$HOME/.local/share/cloudcli-stage"
 RELEASE="$SHARE/release"
